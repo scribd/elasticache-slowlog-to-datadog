@@ -1,0 +1,23 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    coderay (1.1.2)
+    dogapi (1.40.0)
+      multi_json
+    method_source (1.0.0)
+    multi_json (1.14.1)
+    pry (0.13.1)
+      coderay (~> 1.1)
+      method_source (~> 1.0)
+    redis (4.1.3)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  dogapi
+  pry
+  redis
+
+BUNDLED WITH
+   1.17.3
