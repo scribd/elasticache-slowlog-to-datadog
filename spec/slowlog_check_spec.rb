@@ -133,9 +133,9 @@ describe SlowlogCheck do
     subject { slowlog_check.last_datadog_metric}
 
     context 'first time' do
-      it 'returns epoch time' do
+      it 'returns time an hour ago' do
         allow(ddog).to receive(:get_points) { ["", {"status" => "ok", "series" => [] }] }
-        expect(subject).to eq(Time.at(0))
+        expect(subject).to eq(Time.new(2020,4,20,3,20))
       end
     end
 

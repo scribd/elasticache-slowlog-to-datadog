@@ -50,7 +50,7 @@ class SlowlogCheck
   def last_datadog_metric
     series = last_datadog_metrics_submitted_by_me_in_the_last_day[1].fetch("series")
     if series == [] # First invocation
-      return Time.at(0)
+      return minute_precision(Time.now - 3600)
     else
       minute_precision(
         Time.at(
