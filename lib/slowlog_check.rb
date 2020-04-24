@@ -247,7 +247,7 @@ class SlowlogCheck
         "statsd_interval" => 60,
         "per_unit" => nil,
         "type" => "gauge",
-        "unit" => "µs"
+        "unit" => "microsecond"
       }
     }.push(
       {
@@ -255,9 +255,9 @@ class SlowlogCheck
         "type" => 'rate',
         "description" => 'slowlog entries per minute',
         "short_name" => 'per minute',
-        "per_unit" => 'entry',
+        "per_unit" => 'minute',
         "integration" => nil,
-        "unit" => 'entries',
+        "unit" => 'entry',
         "statsd_interval" => 60
       }
     )

@@ -280,7 +280,7 @@ describe SlowlogCheck do
           "statsd_interval"=>60,
           "per_unit"=>nil,
           "type"=>"gauge",
-          "unit"=>"µs"
+          "unit"=>"microsecond"
         }
         ]
       }
@@ -295,9 +295,9 @@ describe SlowlogCheck do
           "short_name"=>"per minute",
           "integration"=>nil,
           "statsd_interval"=>60,
-          "per_unit"=>"entry",
+          "per_unit"=>"minute",
           "type"=>"rate",
-          "unit"=>"entries"
+          "unit"=>"entry"
         }
       }
       it { is_expected.to contain_exactly(diff) }
@@ -309,11 +309,11 @@ describe SlowlogCheck do
         {
           description: 'slowlog entries per minute',
           integration: nil,
-          per_unit: 'entry',
+          per_unit: 'minute',
           short_name: 'per minute',
           statsd_interval: 60,
           type: 'rate',
-          unit: 'entries'
+          unit: 'entry'
         }
       }
       it 'sends the right data to datadog' do
