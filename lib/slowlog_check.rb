@@ -22,6 +22,12 @@ class SlowlogCheck
     end
   end
 
+  def status_or_error(resp)
+    return resp[1].fetch("status") if resp[1].key?("status")
+    return resp[1].fetch("errors") if resp[1].key?("errors")
+    return resp
+  end
+
   # TODO: Rather than hard code a day lookback,
   # look back at an increasing increment until hitting some max value
   def last_datadog_metrics_submitted_by_me_in_the_last_day
@@ -222,6 +228,9 @@ class SlowlogCheck
   end
 
 
+  ##
+  # Metadata
+
   def metric_metadatas
     [
       'avg',
@@ -279,15 +288,10 @@ class SlowlogCheck
       name = metadata.delete("name")
       resp = @ddog.update_metadata(
         name,
-        metadata.transform_keys { |key| key.to_sym rescue key }
+        metadata.transform_keys { |key| key.to_sym }
       )
     LOGGER.info "Updating metadata for #{name} #{status_or_error(resp)}"
     end
   end
 
-  def status_or_error(resp)
-    return resp[1].fetch("status") if resp[1].key?("status")
-    return resp[1].fetch("errors") if resp[1].key?("errors")
-    return resp
-  end
 end

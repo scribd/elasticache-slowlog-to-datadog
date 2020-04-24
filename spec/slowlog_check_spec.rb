@@ -16,12 +16,14 @@ describe SlowlogCheck do
   }
 
   before(:example) do
+    ##
+    # redis mock
     allow(redis).to receive(:connection) { {host: 'master.replicationgroup.abcde.use2.cache.amazonaws.com' } }
     allow(redis).to receive(:slowlog).with('get') {
       [
          [
             1,
-            Time.new(2020,04,20,04,21,15).to_i,
+            Time.new(2020,04,20,04,19,45).to_i,
             100000,
             [
               "eval",
@@ -33,7 +35,7 @@ describe SlowlogCheck do
          ],
          [
             0,
-            Time.new(2020,04,20,04,21,13).to_i,
+            Time.new(2020,04,20,04,19,15).to_i,
             200000,
             [
               "eval",
@@ -46,6 +48,8 @@ describe SlowlogCheck do
       ]
     }
 
+    ##
+    # ddog mock
     allow(ddog).to receive(:get_points).with(
       'rspec.redis.slowlog.micros.95percentile{replication_group:replicationgroup}',
       Time.now - 86400,
@@ -68,8 +72,8 @@ describe SlowlogCheck do
                   "length"=>3,
                   "query_index"=>0,
                   "aggr"=>nil,
-                  "scope"=>"replication_group:infraeng-dev-redis",
-                  "pointlist"=>[[1587602100000.0, 99848.0], [1587603600000.0, 99994.0], [1587684300000.0, 99378.0]],
+                  "scope"=>"replication_group:replicationgroup",
+                  "pointlist"=>[[1587381405000.0, 99994.0], [1587381404000.0, 99378.0]],
                   "expression"=>"rspec.redis.slowlog.micros.95percentile{replication_group:infraeng-dev-redis}",
                   "unit"=>nil,
                   "display_name"=>"rspec.redis.slowlog.micros.95percentile"
@@ -83,12 +87,12 @@ describe SlowlogCheck do
         ]
       }
 
-
+    # Freeze time
     Timecop.freeze(2020, 04, 20, 04, 20, 45)
 
+    # Shhh...
     allow_any_instance_of(Logger).to receive(:info) {}
 
-    allow(slowlog_check).to receive(:last_time_submitted).and_return(slowlog_check.minute_precision(Time.now) - 240)
   end
 
 
@@ -107,6 +111,24 @@ describe SlowlogCheck do
     end
   end
 
+  describe '#status_or_error' do
+    context 'ok' do
+      subject { slowlog_check.status_or_error(["200", {"status" => "ok"}]) }
+      it { is_expected.to eq('ok') }
+    end
+
+    context 'error' do
+      subject { slowlog_check.status_or_error(["404", {"errors" => ["error"]}]) }
+      it { is_expected.to eq(['error']) }
+    end
+
+    context 'otherwise' do
+      subject { slowlog_check.status_or_error(["404", {"somenewthing" => ["error"]}]) }
+      it { is_expected.to eq(["404", {"somenewthing" => ['error']}]) }
+    end
+
+  end
+
   describe '#last_datadog_metric' do
     subject { slowlog_check.last_datadog_metric}
 
@@ -118,7 +140,7 @@ describe SlowlogCheck do
     end
 
     context 'nth time' do
-      it { is_expected.to eq(Time.at(1587684300)) }
+      it { is_expected.to eq(Time.new(2020,4,20,4,16)) }
     end
   end
 
@@ -147,6 +169,7 @@ describe SlowlogCheck do
   end
 
   describe '#add_metric_to_bucket' do
+    subject { slowlog_check.add_metric_to_bucket(prior, new) }
     let(:prior) {
       {
         values: [10],
@@ -172,13 +195,11 @@ describe SlowlogCheck do
         sum: 30
       }
     }
-    subject { slowlog_check.add_metric_to_bucket(prior, new) }
     it { is_expected.to eq(result) }
   end
 
   describe '#slowlogs_by_flush_interval' do
     subject { slowlog_check.slowlogs_by_flush_interval }
-
     let(:bucket) {
       {
         "eval" =>
@@ -198,9 +219,8 @@ describe SlowlogCheck do
                             {
                               Time.new(2020,04,20,04,17) => nil,
                               Time.new(2020,04,20,04,18) => nil,
-                              Time.new(2020,04,20,04,19) => nil,
-                              Time.new(2020,04,20,04,20) => nil,
-                              Time.new(2020,04,20,04,21) => bucket
+                              Time.new(2020,04,20,04,19) => bucket,
+                              Time.new(2020,04,20,04,20) => nil
                             }
                           )
     }
@@ -223,14 +243,13 @@ describe SlowlogCheck do
   describe '#ship_slowlogs' do
     subject { slowlog_check.ship_slowlogs }
     let(:tags) { slowlog_check.default_tags.merge(command: 'eval') }
-
     it 'sends the right data to datadog' do
       allow(ddog).to receive(:emit_points) {["200", { "status" => "ok" }]}
       subject
 
       expect(ddog).to have_received(:emit_points).with(
         "rspec.redis.slowlog.micros.avg",
-        [[Time.new(2020,04,20,04,21), 150000]],
+        [[Time.new(2020,04,20,04,19), 150000]],
         {
           :host=>"replicationgroup",
           :interval=>60,
@@ -269,7 +288,6 @@ describe SlowlogCheck do
 
     describe '#diff_metadatas' do
       subject { slowlog_check.diff_metadatas }
-
       let(:diff) {
          {
           "name"=>"rspec.redis.slowlog.micros.count",
@@ -282,7 +300,6 @@ describe SlowlogCheck do
           "unit"=>"entries"
         }
       }
-
       it { is_expected.to contain_exactly(diff) }
     end
 
@@ -307,30 +324,7 @@ describe SlowlogCheck do
          'rspec.redis.slowlog.micros.count',
          diff
         )
-
       end
     end
-  end
-
-  describe '#status_or_error' do
-    context 'ok' do
-      subject { slowlog_check.status_or_error(["200", {"status" => "ok"}]) }
-
-      it { is_expected.to eq('ok') }
-
-    end
-
-    context 'error' do
-      subject { slowlog_check.status_or_error(["404", {"errors" => ["error"]}]) }
-
-      it { is_expected.to eq(['error']) }
-    end
-
-    context 'otherwise' do
-      subject { slowlog_check.status_or_error(["404", {"somenewthing" => ["error"]}]) }
-
-      it { is_expected.to eq(["404", {"somenewthing" => ['error']}]) }
-    end
-
   end
 end
