@@ -5,6 +5,7 @@ require 'logger'
 require 'date'
 require 'redis'
 require 'dogapi'
+require 'aws-sdk-ssm'
 require_relative 'lib/slowlog_check'
 
 LOGGER = Logger.new($stdout)
@@ -28,6 +29,19 @@ def lambda_handler(event: {}, context: {})
   @event = event
   log_context
 
+  if ENV.fetch('SSM_PATH', false)
+    resp = Aws::SSM::Client.new().get_parameters_by_path(
+      path: '/slowlog_check/',
+      recursive: true,
+      with_decryption: true
+    )
+    resp.parameters.each do |parameter|
+      name = File.basename(parameter.name)
+      LOGGER.info "Setting parameter: #{name} from SSM."
+      ENV[name] = parameter.value
+    end
+  end
+
   unless defined? @slowlog_check
     @slowlog_check = SlowlogCheck.new(
       ddog: Dogapi::Client.new(
@@ -40,7 +54,7 @@ def lambda_handler(event: {}, context: {})
       ),
       namespace: ENV.fetch('NAMESPACE'),
       env: ENV.fetch('ENV'),
-      metricname: 'scribddev.redis.slowlog.micros'
+      metricname: ENV.fetch('METRICNAME', 'redis.slowlog.micros')
     )
 
     @slowlog_check.update_metadatas
