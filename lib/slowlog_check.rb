@@ -31,7 +31,7 @@ class SlowlogCheck
       Time.now
     )
 
-    raise "Error getting last datadog metric submitted by me" unless resp[1].fetch("status") == "ok"
+    raise "Error getting last datadog metric submitted by me" unless status_or_error(resp) == "ok"
     resp
   end
 
@@ -172,7 +172,7 @@ class SlowlogCheck
     host = params.fetch(:host, replication_group)
     tags = params.fetch(:tags, default_tags)
 
-    LOGGER.info "Sending slowlog entry: #{points.first[1]}µs executing #{tags[:command]} at #{points.first[0]}."
+    LOGGER.info "Sending slowlog entry: #{metric}: #{points.first[1]}µs executing #{tags[:command]} at #{points.first[0]}."
     resp = @ddog.emit_points(
       metric,
       points,
@@ -183,8 +183,11 @@ class SlowlogCheck
         tags: tags
       }
     )
-    raise "Error submitting metric for #{replication_group}" unless resp[1].fetch("status") == "ok"
+    raise "Error submitting metric for #{replication_group}" unless status_or_error(resp) == "ok"
+
+    # Sigh. After doing all the work to pass around Time objects, dogapi-rb changes this to an integer.
     @last_time_submitted = Time.at(points.first[0])
+    LOGGER.info "#{metric} set #{status_or_error(resp)} at #{Time.at(points.first[0])}"
     resp
   end
 
@@ -217,5 +220,74 @@ class SlowlogCheck
       end
     end
   end
-end
 
+
+  def metric_metadatas
+    [
+      'avg',
+      'median',
+      'min',
+      'max',
+      '95percentile'
+    ].map { |metric|
+      {
+        "name" => @metricname + '.' + metric,
+        "description" => "slowlog duration #{metric} (µs)",
+        "short_name" => "#{metric} (µs)",
+        "integration" => nil,
+        "statsd_interval" => 60,
+        "per_unit" => nil,
+        "type" => "gauge",
+        "unit" => "µs"
+      }
+    }.push(
+      {
+        "name" => @metricname + '.count',
+        "type" => 'rate',
+        "description" => 'slowlog entries per minute',
+        "short_name" => 'per minute',
+        "per_unit" => 'entry',
+        "integration" => nil,
+        "unit" => 'entries',
+        "statsd_interval" => 60
+      }
+    )
+  end
+
+  def get_metadatas
+    [
+      'avg',
+      'median',
+      'min',
+      'max',
+      '95percentile',
+      'count'
+    ].map do |metric|
+      name = @metricname + '.' + metric
+      @ddog.get_metadata(name)[1]
+        .merge("name" => name)
+    end
+  end
+
+  def diff_metadatas
+    metric_metadatas - get_metadatas
+  end
+
+
+  def update_metadatas
+    diff_metadatas.each do |metadata|
+      name = metadata.delete("name")
+      resp = @ddog.update_metadata(
+        name,
+        metadata.transform_keys { |key| key.to_sym rescue key }
+      )
+    LOGGER.info "Updating metadata for #{name} #{status_or_error(resp)}"
+    end
+  end
+
+  def status_or_error(resp)
+    return resp[1].fetch("status") if resp[1].key?("status")
+    return resp[1].fetch("errors") if resp[1].key?("errors")
+    return resp
+  end
+end

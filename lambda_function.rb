@@ -28,19 +28,23 @@ def lambda_handler(event: {}, context: {})
   @event = event
   log_context
 
-  @slowlog_check ||= SlowlogCheck.new(
-    ddog: Dogapi::Client.new(
-      ENV.fetch('DATADOG_API_KEY'),
-      ENV.fetch('DATADOG_APP_KEY')
-    ),
-    redis: Redis.new(
-      host: ENV.fetch('REDIS_HOST'),
-      ssl: :true
-    ),
-    namespace: ENV.fetch('NAMESPACE'),
-    env: ENV.fetch('ENV'),
-    metricname: 'scribddev.redis.slowlog.micros'
-  )
+  unless defined? @slowlog_check
+    @slowlog_check = SlowlogCheck.new(
+      ddog: Dogapi::Client.new(
+        ENV.fetch('DATADOG_API_KEY'),
+        ENV.fetch('DATADOG_APP_KEY')
+      ),
+      redis: Redis.new(
+        host: ENV.fetch('REDIS_HOST'),
+        ssl: :true
+      ),
+      namespace: ENV.fetch('NAMESPACE'),
+      env: ENV.fetch('ENV'),
+      metricname: 'scribddev.redis.slowlog.micros'
+    )
+
+    @slowlog_check.update_metadatas
+  end
 
   @slowlog_check.ship_slowlogs
 

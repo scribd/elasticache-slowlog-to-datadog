@@ -221,11 +221,12 @@ describe SlowlogCheck do
   end
 
   describe '#ship_slowlogs' do
+    subject { slowlog_check.ship_slowlogs }
     let(:tags) { slowlog_check.default_tags.merge(command: 'eval') }
 
     it 'sends the right data to datadog' do
       allow(ddog).to receive(:emit_points) {["200", { "status" => "ok" }]}
-      slowlog_check.ship_slowlogs
+      subject
 
       expect(ddog).to have_received(:emit_points).with(
         "rspec.redis.slowlog.micros.avg",
@@ -248,5 +249,88 @@ describe SlowlogCheck do
     end
   end
 
+  describe 'metadata' do
+    before(:each) {
+      allow(ddog).to receive(:get_metadata) { |name|
+        metric = name.split('.').last
+        ["200",
+         {
+          "description"=>"slowlog duration #{metric} (µs)",
+          "short_name"=>"#{metric} (µs)",
+          "integration"=>nil,
+          "statsd_interval"=>60,
+          "per_unit"=>nil,
+          "type"=>"gauge",
+          "unit"=>"µs"
+        }
+        ]
+      }
+    }
 
+    describe '#diff_metadatas' do
+      subject { slowlog_check.diff_metadatas }
+
+      let(:diff) {
+         {
+          "name"=>"rspec.redis.slowlog.micros.count",
+          "description"=>"slowlog entries per minute",
+          "short_name"=>"per minute",
+          "integration"=>nil,
+          "statsd_interval"=>60,
+          "per_unit"=>"entry",
+          "type"=>"rate",
+          "unit"=>"entries"
+        }
+      }
+
+      it { is_expected.to contain_exactly(diff) }
+    end
+
+    describe '#update_metadatas' do
+      subject { slowlog_check.update_metadatas }
+      let(:diff) {
+        {
+          description: 'slowlog entries per minute',
+          integration: nil,
+          per_unit: 'entry',
+          short_name: 'per minute',
+          statsd_interval: 60,
+          type: 'rate',
+          unit: 'entries'
+        }
+      }
+      it 'sends the right data to datadog' do
+        allow(ddog).to receive(:update_metadata) {["200", {"status" => "ok"}]}
+        subject
+
+        expect(ddog).to have_received(:update_metadata).with(
+         'rspec.redis.slowlog.micros.count',
+         diff
+        )
+
+      end
+    end
+  end
+
+  describe '#status_or_error' do
+    context 'ok' do
+      subject { slowlog_check.status_or_error(["200", {"status" => "ok"}]) }
+
+      it { is_expected.to eq('ok') }
+
+    end
+
+    context 'error' do
+      subject { slowlog_check.status_or_error(["404", {"errors" => ["error"]}]) }
+
+      it { is_expected.to eq(['error']) }
+    end
+
+    context 'otherwise' do
+      subject { slowlog_check.status_or_error(["404", {"somenewthing" => ["error"]}]) }
+
+      it { is_expected.to eq(["404", {"somenewthing" => ['error']}]) }
+    end
+
+  end
 end
