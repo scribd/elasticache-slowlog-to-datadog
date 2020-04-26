@@ -1,13 +1,11 @@
-name: Build, Test, Zip
+name: Rspec
 
 on:
   push:
-    branches: [ master, cidev ]
   pull_request:
-    branches: [ master, cidev ]
 
 jobs:
-  build:
+  rspec:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,6 +16,6 @@ jobs:
         ruby-version: 2.5.8
     - name: Test with Rspec
       run: |
-          gem install bundler
+          gem install --no-rdoc --no-ri bundler
           bundle install
-          bundle exec rspec --format documentation --color
+          bundle exec rspec
