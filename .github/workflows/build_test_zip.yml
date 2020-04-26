@@ -1,14 +1,13 @@
-name: Ruby
+name: Build, Test, Zip
 
 on:
   push:
-    branches: [ master cidev ]
+    branches: [ master, cidev ]
   pull_request:
-    branches: [ master cidev ]
+    branches: [ master, cidev ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
