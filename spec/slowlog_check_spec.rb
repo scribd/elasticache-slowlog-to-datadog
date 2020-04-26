@@ -14,6 +14,8 @@ describe SlowlogCheck do
 
     )
   }
+  let(:frozen_time) { Time.utc(2020,4,20,4,20,45) }
+  let(:ddog_time) { Time.utc(2020,4,20,4,16).to_i * 1000.0 }
 
   before(:example) do
     ##
@@ -23,7 +25,7 @@ describe SlowlogCheck do
       [
          [
             1,
-            Time.new(2020,04,20,04,19,45).to_i,
+            Time.utc(2020,04,20,04,19,45).to_i,
             100000,
             [
               "eval",
@@ -35,7 +37,7 @@ describe SlowlogCheck do
          ],
          [
             0,
-            Time.new(2020,04,20,04,19,15).to_i,
+            Time.utc(2020,04,20,04,19,15).to_i,
             200000,
             [
               "eval",
@@ -73,7 +75,7 @@ describe SlowlogCheck do
                   "query_index"=>0,
                   "aggr"=>nil,
                   "scope"=>"replication_group:replicationgroup",
-                  "pointlist"=>[[1587381405000.0, 99994.0], [1587381404000.0, 99378.0]],
+                  "pointlist"=>[[ddog_time, 99994.0], [ddog_time - 5000, 99378.0]],
                   "expression"=>"rspec.redis.slowlog.micros.95percentile{replication_group:infraeng-dev-redis}",
                   "unit"=>nil,
                   "display_name"=>"rspec.redis.slowlog.micros.95percentile"
@@ -88,11 +90,10 @@ describe SlowlogCheck do
       }
 
     # Freeze time
-    Timecop.freeze(2020, 04, 20, 04, 20, 45)
+    Timecop.freeze(frozen_time)
 
     # Shhh...
     allow_any_instance_of(Logger).to receive(:info) {}
-
   end
 
 
@@ -135,18 +136,18 @@ describe SlowlogCheck do
     context 'first time' do
       it 'returns time an hour ago' do
         allow(ddog).to receive(:get_points) { ["", {"status" => "ok", "series" => [] }] }
-        expect(subject).to eq(Time.new(2020,4,20,3,20))
+        expect(subject).to eq(Time.utc(2020,4,20,3,20))
       end
     end
 
     context 'nth time' do
-      it { is_expected.to eq(Time.new(2020,4,20,4,16)) }
+      it { is_expected.to eq(Time.utc(2020,4,20,4,16)) }
     end
   end
 
   describe '#minute_precision' do
     subject { slowlog_check.minute_precision(Time.now) }
-    it { is_expected.to eq(Time.new(2020,4,20,4,20,0)) }
+    it { is_expected.to eq(Time.utc(2020,4,20,4,20,0)) }
   end
 
   describe '#reporting_interval' do
@@ -217,10 +218,10 @@ describe SlowlogCheck do
     }
     it { is_expected.to eq(
                             {
-                              Time.new(2020,04,20,04,17) => nil,
-                              Time.new(2020,04,20,04,18) => nil,
-                              Time.new(2020,04,20,04,19) => bucket,
-                              Time.new(2020,04,20,04,20) => nil
+                              Time.utc(2020,04,20,04,17) => nil,
+                              Time.utc(2020,04,20,04,18) => nil,
+                              Time.utc(2020,04,20,04,19) => bucket,
+                              Time.utc(2020,04,20,04,20) => nil
                             }
                           )
     }
@@ -249,7 +250,7 @@ describe SlowlogCheck do
 
       expect(ddog).to have_received(:emit_points).with(
         "rspec.redis.slowlog.micros.avg",
-        [[Time.new(2020,04,20,04,19), 150000]],
+        [[Time.utc(2020,04,20,04,19), 150000]],
         {
           :host=>"replicationgroup",
           :interval=>60,
