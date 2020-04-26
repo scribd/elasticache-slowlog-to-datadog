@@ -16,6 +16,6 @@ jobs:
         ruby-version: 2.5.8
     - name: Test with Rspec
       run: |
-          gem install --no-rdoc --no-ri -- bundler
+          gem install --no-rdoc --no-ri bundler
           bundle install --jobs 4 --retry 3
           bundle exec rspec
