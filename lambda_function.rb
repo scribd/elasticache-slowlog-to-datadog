@@ -55,7 +55,7 @@ def lambda_handler(event: {}, context: {})
       ),
       namespace: ENV.fetch('NAMESPACE'),
       env: ENV.fetch('ENV'),
-      metricname: ENV.fetch('METRICNAME', 'redis.slowlog.micros')
+      metricname: ENV.fetch('METRICNAME', 'elasticache.slowlog')
     )
 
     @slowlog_check.update_metadatas
