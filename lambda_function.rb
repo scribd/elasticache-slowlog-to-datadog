@@ -5,7 +5,6 @@ require 'logger'
 require 'date'
 require 'redis'
 require 'dogapi'
-require 'aws-sdk-ssm'
 require_relative 'lib/slowlog_check'
 
 LOGGER = Logger.new($stdout)
@@ -29,9 +28,11 @@ def lambda_handler(event: {}, context: {})
   @event = event
   log_context
 
-  if ENV.fetch('SSM_PATH', false)
+  ssm_path = ENV.fetch('SSM_PATH', false)
+  if ssm_path
+    require 'aws-sdk-ssm'
     resp = Aws::SSM::Client.new().get_parameters_by_path(
-      path: '/slowlog_check/',
+      path: "/#{ssm_path}/",
       recursive: true,
       with_decryption: true
     )
