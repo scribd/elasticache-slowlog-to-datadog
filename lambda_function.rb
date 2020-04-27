@@ -68,7 +68,4 @@ end
 
 if __FILE__ == $0
   lambda_handler
-
-  require 'pry'
-  binding.pry
 end
