@@ -21,22 +21,14 @@ jobs:
     - name: Zip
       run : |
         zip -r slowlog_check.zip ./*
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
+    - name: Semantic Release
+      id: semantic
+      uses: cycjimmy/semantic-release-action@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: true
-        prerelease: true
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./slowlog_check.zip
-        asset_name: slowlog_check-${{ github.ref }}.zip
-        asset_content_type: application/zip
+        semantic_version: 17
+      # You can specify specifying version range for the extra plugins if you prefer.
+      extra_plugins: |
+        @semantic-release/changelog@3.0.0
+        @semantic-release/git
