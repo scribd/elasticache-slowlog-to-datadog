@@ -3,6 +3,7 @@ require 'logger'
 
 class SlowlogCheck
   ::LOGGER ||= ::Logger.new($stdout)
+  MAXLENGTH = 1048576 #255 levels of recursion for #
 
   def initialize(params = {})
     @ddog = params.fetch(:ddog)
@@ -114,8 +115,16 @@ class SlowlogCheck
     }
   end
 
-  def redis_slowlog
-    @redis.slowlog('get')
+  def did_i_get_it_all?(slowlog)
+    slowlog[-1][0] == 0
+  end
+
+  def redis_slowlog(length=128)
+    resp = @redis.slowlog('get', length)
+
+    return resp if length > MAXLENGTH
+    return resp if did_i_get_it_all?(resp)
+    return redis_slowlog(length * 2)
   end
 
   def slowlogs_by_flush_interval

@@ -17,36 +17,31 @@ describe SlowlogCheck do
   let(:frozen_time) { Time.utc(2020,4,20,4,20,45) }
   let(:ddog_time) { Time.utc(2020,4,20,4,16).to_i * 1000.0 }
 
+  def redis_slowlog(index, time, microseconds)
+    [
+      index,
+      time.to_i,
+      microseconds,
+      [
+        "eval",
+        "",
+        "0"
+      ],
+      "192.0.2.40:55700",
+      ""
+    ]
+  end
+
   before(:example) do
     ##
     # redis mock
     allow(redis).to receive(:connection) { {host: 'master.replicationgroup.abcde.use2.cache.amazonaws.com' } }
-    allow(redis).to receive(:slowlog).with('get') {
+    allow(redis).to receive(:slowlog).with('get', 128) {
       [
-         [
-            1,
-            Time.utc(2020,04,20,04,19,45).to_i,
-            100000,
-            [
-              "eval",
-              "",
-              "0"
-            ],
-            "192.0.2.40:55700",
-            ""
-         ],
-         [
-            0,
-            Time.utc(2020,04,20,04,19,15).to_i,
-            200000,
-            [
-              "eval",
-              "",
-              "0"
-            ],
-            "192.0.2.40:55700",
-            ""
-         ]
+         redis_slowlog( 3, Time.utc(2020,04,20,04,19,45), 400000 ),
+         redis_slowlog( 2, Time.utc(2020,04,20,04,19,15), 100000 ),
+         redis_slowlog( 1, Time.utc(2020,04,20,04,18,45), 100000 ),
+         redis_slowlog( 0, Time.utc(2020,04,20,04,18,15), 200000 ),
       ]
     }
 
@@ -96,6 +91,76 @@ describe SlowlogCheck do
     allow_any_instance_of(Logger).to receive(:info) {}
   end
 
+  describe '#redis_slowlog.length' do
+    context 'redis has 4 entries' do
+      before(:each) do
+        allow(redis).to receive(:slowlog).with('get', 128) {
+          [
+             redis_slowlog( 3, Time.utc(2020,04,20,04,19,45), 400000 ),
+             redis_slowlog( 2, Time.utc(2020,04,20,04,19,15), 100000 ),
+             redis_slowlog( 1, Time.utc(2020,04,20,04,18,45), 100000 ),
+             redis_slowlog( 0, Time.utc(2020,04,20,04,18,15), 200000 ),
+          ]
+        }
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(4) }
+    end
+
+    context 'redis has 129 entries and a zeroeth entry' do
+      before(:each) do
+        allow(redis).to receive(:slowlog).with('get', 128) {
+          Array.new(129) { |x|
+            redis_slowlog(x, Time.utc(2020,04,20,04,00,00) + x, x * 1000)
+          }.reverse[0..127]
+        }
+
+        allow(redis).to receive(:slowlog).with('get', 256) {
+          Array.new(129) { |x|
+            redis_slowlog(x, Time.utc(2020,04,20,04,00,00) + x, x * 1000)
+          }.reverse
+        }
+
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(129) }
+    end
+
+    context 'redis has 1048576 * 2 + 1 entries and a zeroeth entry' do
+      let(:sauce) {
+          Array.new(1048576 * 2 + 1) { |x|
+            redis_slowlog(x, 1587352800, x) #lettuce not create so many unnecessary Time objects
+          }.reverse
+        }
+      before(:each) do
+        allow(redis).to receive(:slowlog) { |_,number|
+          sauce[0..number-1]
+        }
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(1048576 * 2) } # with the last entry dropped
+    end
+
+    context 'redis has 567 entries and no zeroeth entry' do
+      let(:sauce) {
+          Array.new(567) { |x|
+            redis_slowlog(x + 1, Time.utc(2020,04,20,03,20,00) + x, x)
+          }.reverse
+        }
+      before(:each) do
+        allow(redis).to receive(:slowlog) { |_,number|
+          sauce[0..number-1]
+        }
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(567) }
+
+    end
+  end
 
   describe '#replication_group' do
     subject { slowlog_check.replication_group }
@@ -201,7 +266,7 @@ describe SlowlogCheck do
 
   describe '#slowlogs_by_flush_interval' do
     subject { slowlog_check.slowlogs_by_flush_interval }
-    let(:bucket) {
+    let(:bucket18) {
       {
         "eval" =>
         {
@@ -216,11 +281,26 @@ describe SlowlogCheck do
         }
       }
     }
+    let(:bucket19) {
+      {
+        "eval" =>
+        {
+          _95percentile: 100000,
+          avg: 250000,
+          count: 2,
+          max: 400000,
+          median: 100000,
+          min: 100000,
+          sum: 500000,
+          values: [400000, 100000]
+        }
+      }
+    }
     it { is_expected.to eq(
                             {
                               Time.utc(2020,04,20,04,17) => nil,
-                              Time.utc(2020,04,20,04,18) => nil,
-                              Time.utc(2020,04,20,04,19) => bucket,
+                              Time.utc(2020,04,20,04,18) => bucket18,
+                              Time.utc(2020,04,20,04,19) => bucket19,
                               Time.utc(2020,04,20,04,20) => nil
                             }
                           )
@@ -243,28 +323,37 @@ describe SlowlogCheck do
 
   describe '#ship_slowlogs' do
     subject { slowlog_check.ship_slowlogs }
-    let(:tags) { slowlog_check.default_tags.merge(command: 'eval') }
+    let(:options) {
+      {
+        :host=>"replicationgroup",
+        :interval=>60,
+        :type=>"gauge",
+        :tags=>
+         {
+           :aws=>"true",
+           :command=>"eval",
+           :env=>"test",
+           :namespace=>"rspec",
+           :replication_group=>"replicationgroup",
+           :service=>"replicationgroup"
+         }
+      }
+    }
+
     it 'sends the right data to datadog' do
       allow(ddog).to receive(:emit_points) {["200", { "status" => "ok" }]}
       subject
 
       expect(ddog).to have_received(:emit_points).with(
         "rspec.redis.slowlog.micros.avg",
-        [[Time.utc(2020,04,20,04,19), 150000]],
-        {
-          :host=>"replicationgroup",
-          :interval=>60,
-          :type=>"gauge",
-          :tags=>
-           {
-             :aws=>"true",
-             :command=>"eval",
-             :env=>"test",
-             :namespace=>"rspec",
-             :replication_group=>"replicationgroup",
-             :service=>"replicationgroup"
-           }
-        }
+        [[Time.utc(2020,04,20,04,18), 150000]],
+        options
+      )
+
+      expect(ddog).to have_received(:emit_points).with(
+        "rspec.redis.slowlog.micros.avg",
+        [[Time.utc(2020,04,20,04,19), 250000]],
+        options
       )
     end
   end
