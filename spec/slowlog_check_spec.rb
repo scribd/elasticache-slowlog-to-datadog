@@ -17,60 +17,31 @@ describe SlowlogCheck do
   let(:frozen_time) { Time.utc(2020,4,20,4,20,45) }
   let(:ddog_time) { Time.utc(2020,4,20,4,16).to_i * 1000.0 }
 
+  def redis_slowlog(index, time, microseconds)
+    [
+      index,
+      time.to_i,
+      microseconds,
+      [
+        "eval",
+        "",
+        "0"
+      ],
+      "192.0.2.40:55700",
+      ""
+    ]
+  end
+
   before(:example) do
     ##
     # redis mock
     allow(redis).to receive(:connection) { {host: 'master.replicationgroup.abcde.use2.cache.amazonaws.com' } }
-    allow(redis).to receive(:slowlog).with('get') {
+    allow(redis).to receive(:slowlog).with('get', 128) {
       [
-         [
-            3,
-            Time.utc(2020,04,20,04,19,45).to_i,
-            400000,
-            [
-              "eval",
-              "",
-              "0"
-            ],
-            "192.0.2.40:55700",
-            ""
-         ],
-         [
-            2,
-            Time.utc(2020,04,20,04,19,15).to_i,
-            100000,
-            [
-              "eval",
-              "",
-              "0"
-            ],
-            "192.0.2.40:55700",
-            ""
-         ],
-         [
-            1,
-            Time.utc(2020,04,20,04,18,45).to_i,
-            100000,
-            [
-              "eval",
-              "",
-              "0"
-            ],
-            "192.0.2.40:55700",
-            ""
-         ],
-         [
-            0,
-            Time.utc(2020,04,20,04,18,15).to_i,
-            200000,
-            [
-              "eval",
-              "",
-              "0"
-            ],
-            "192.0.2.40:55700",
-            ""
-         ]
+         redis_slowlog( 3, Time.utc(2020,04,20,04,19,45), 400000 ),
+         redis_slowlog( 2, Time.utc(2020,04,20,04,19,15), 100000 ),
+         redis_slowlog( 1, Time.utc(2020,04,20,04,18,45), 100000 ),
+         redis_slowlog( 0, Time.utc(2020,04,20,04,18,15), 200000 ),
       ]
     }
 
@@ -120,6 +91,76 @@ describe SlowlogCheck do
     allow_any_instance_of(Logger).to receive(:info) {}
   end
 
+  describe '#redis_slowlog.length' do
+    context 'redis has 4 entries' do
+      before(:each) do
+        allow(redis).to receive(:slowlog).with('get', 128) {
+          [
+             redis_slowlog( 3, Time.utc(2020,04,20,04,19,45), 400000 ),
+             redis_slowlog( 2, Time.utc(2020,04,20,04,19,15), 100000 ),
+             redis_slowlog( 1, Time.utc(2020,04,20,04,18,45), 100000 ),
+             redis_slowlog( 0, Time.utc(2020,04,20,04,18,15), 200000 ),
+          ]
+        }
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(4) }
+    end
+
+    context 'redis has 129 entries and a zeroeth entry' do
+      before(:each) do
+        allow(redis).to receive(:slowlog).with('get', 128) {
+          Array.new(129) { |x|
+            redis_slowlog(x, Time.utc(2020,04,20,04,00,00) + x, x * 1000)
+          }.reverse[0..127]
+        }
+
+        allow(redis).to receive(:slowlog).with('get', 256) {
+          Array.new(129) { |x|
+            redis_slowlog(x, Time.utc(2020,04,20,04,00,00) + x, x * 1000)
+          }.reverse
+        }
+
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(129) }
+    end
+
+    context 'redis has 1048576 * 2 + 1 entries and a zeroeth entry' do
+      let(:sauce) {
+          Array.new(1048576 * 2 + 1) { |x|
+            redis_slowlog(x, 1587352800, x) #lettuce not create so many unnecessary Time objects
+          }.reverse
+        }
+      before(:each) do
+        allow(redis).to receive(:slowlog) { |_,number|
+          sauce[0..number-1]
+        }
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(1048576 * 2) } # with the last entry dropped
+    end
+
+    context 'redis has 567 entries and no zeroeth entry' do
+      let(:sauce) {
+          Array.new(567) { |x|
+            redis_slowlog(x, Time.utc(2020,04,20,03,20,00) + x, x)
+          }.reverse
+        }
+      before(:each) do
+        allow(redis).to receive(:slowlog) { |_,number|
+          sauce[0..number-1]
+        }
+      end
+
+      subject { slowlog_check.redis_slowlog.length }
+      it { is_expected.to eq(567) }
+
+    end
+  end
 
   describe '#replication_group' do
     subject { slowlog_check.replication_group }
