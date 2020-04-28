@@ -24,8 +24,32 @@ describe SlowlogCheck do
     allow(redis).to receive(:slowlog).with('get') {
       [
          [
-            1,
+            3,
             Time.utc(2020,04,20,04,19,45).to_i,
+            400000,
+            [
+              "eval",
+              "",
+              "0"
+            ],
+            "192.0.2.40:55700",
+            ""
+         ],
+         [
+            2,
+            Time.utc(2020,04,20,04,19,15).to_i,
+            100000,
+            [
+              "eval",
+              "",
+              "0"
+            ],
+            "192.0.2.40:55700",
+            ""
+         ],
+         [
+            1,
+            Time.utc(2020,04,20,04,18,45).to_i,
             100000,
             [
               "eval",
@@ -37,7 +61,7 @@ describe SlowlogCheck do
          ],
          [
             0,
-            Time.utc(2020,04,20,04,19,15).to_i,
+            Time.utc(2020,04,20,04,18,15).to_i,
             200000,
             [
               "eval",
@@ -201,7 +225,7 @@ describe SlowlogCheck do
 
   describe '#slowlogs_by_flush_interval' do
     subject { slowlog_check.slowlogs_by_flush_interval }
-    let(:bucket) {
+    let(:bucket18) {
       {
         "eval" =>
         {
@@ -216,11 +240,26 @@ describe SlowlogCheck do
         }
       }
     }
+    let(:bucket19) {
+      {
+        "eval" =>
+        {
+          _95percentile: 100000,
+          avg: 250000,
+          count: 2,
+          max: 400000,
+          median: 100000,
+          min: 100000,
+          sum: 500000,
+          values: [400000, 100000]
+        }
+      }
+    }
     it { is_expected.to eq(
                             {
                               Time.utc(2020,04,20,04,17) => nil,
-                              Time.utc(2020,04,20,04,18) => nil,
-                              Time.utc(2020,04,20,04,19) => bucket,
+                              Time.utc(2020,04,20,04,18) => bucket18,
+                              Time.utc(2020,04,20,04,19) => bucket19,
                               Time.utc(2020,04,20,04,20) => nil
                             }
                           )
@@ -243,28 +282,37 @@ describe SlowlogCheck do
 
   describe '#ship_slowlogs' do
     subject { slowlog_check.ship_slowlogs }
-    let(:tags) { slowlog_check.default_tags.merge(command: 'eval') }
+    let(:options) {
+      {
+        :host=>"replicationgroup",
+        :interval=>60,
+        :type=>"gauge",
+        :tags=>
+         {
+           :aws=>"true",
+           :command=>"eval",
+           :env=>"test",
+           :namespace=>"rspec",
+           :replication_group=>"replicationgroup",
+           :service=>"replicationgroup"
+         }
+      }
+    }
+
     it 'sends the right data to datadog' do
       allow(ddog).to receive(:emit_points) {["200", { "status" => "ok" }]}
       subject
 
       expect(ddog).to have_received(:emit_points).with(
         "rspec.redis.slowlog.micros.avg",
-        [[Time.utc(2020,04,20,04,19), 150000]],
-        {
-          :host=>"replicationgroup",
-          :interval=>60,
-          :type=>"gauge",
-          :tags=>
-           {
-             :aws=>"true",
-             :command=>"eval",
-             :env=>"test",
-             :namespace=>"rspec",
-             :replication_group=>"replicationgroup",
-             :service=>"replicationgroup"
-           }
-        }
+        [[Time.utc(2020,04,20,04,18), 150000]],
+        options
+      )
+
+      expect(ddog).to have_received(:emit_points).with(
+        "rspec.redis.slowlog.micros.avg",
+        [[Time.utc(2020,04,20,04,19), 250000]],
+        options
       )
     end
   end
