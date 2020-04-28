@@ -147,7 +147,7 @@ describe SlowlogCheck do
     context 'redis has 567 entries and no zeroeth entry' do
       let(:sauce) {
           Array.new(567) { |x|
-            redis_slowlog(x, Time.utc(2020,04,20,03,20,00) + x, x)
+            redis_slowlog(x + 1, Time.utc(2020,04,20,03,20,00) + x, x)
           }.reverse
         }
       before(:each) do
