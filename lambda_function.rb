@@ -8,7 +8,7 @@ require 'dogapi'
 require_relative 'lib/slowlog_check'
 
 LOGGER = Logger.new($stdout)
-LOGGER.level = Logger::DEBUG
+LOGGER.level = Logger::INFO
 LOGGER.freeze
 
 def event_time
