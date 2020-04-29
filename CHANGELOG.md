@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.0.0...v1.0.1) (2020-04-29)
+
+
+### Bug Fixes
+
+* Get the whole redis slowlog, rather than just 10 ([bbbfa48](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/bbbfa489f6f1a649b74a89f404db797823f202d8))
+
 # 1.0.0 (2020-04-27)
 
 
