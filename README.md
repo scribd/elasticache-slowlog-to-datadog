@@ -5,7 +5,12 @@ and submits slowlog entry metrics to a Datadog account.
 
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 
+
+
+![Example Datadog timeboard](images/elasticache-slowlog-to-datadog.png)
+
 # lambda_function.rb
+
 ## Usage
 
 This lambda function was built and tested with the `ruby-2.5` runtime.
