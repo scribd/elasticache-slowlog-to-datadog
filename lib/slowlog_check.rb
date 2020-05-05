@@ -56,7 +56,7 @@ class SlowlogCheck
           series
             .first
             .fetch("pointlist")
-            .map {|x| x[0]}
+            .map { |x| x[0] }
             .max
             .to_i / 1000
         )
@@ -82,7 +82,7 @@ class SlowlogCheck
     now_i = minute_precision(Time.now).to_i - 60
     start_time_i = last_time_submitted.to_i + 60
     times = (start_time_i..now_i).step(60).to_a
-    Hash[times.collect {|time| [Time.at(time), {}]}]
+    Hash[times.collect { |time| [Time.at(time), {}] }]
   end
 
   def _95percentile(sorted_values)
@@ -93,7 +93,7 @@ class SlowlogCheck
   def add_metric_to_bucket(prior, new)
     new_values = prior[:values].push(new)
     new_count = new_values.length
-    new_avg  = ((prior[:avg] * prior[:count]) + new) / new_count
+    new_avg = ((prior[:avg] * prior[:count]) + new) / new_count
 
     sorted_values = new_values.sort
     new_median = sorted_values[(sorted_values.count / 2) - 1]
@@ -118,7 +118,7 @@ class SlowlogCheck
     slowlog[-1][0] == 0
   end
 
-  def redis_slowlog(length=128)
+  def redis_slowlog(length = 128)
     resp = @redis.slowlog('get', length)
 
     return resp if length > MAXLENGTH
@@ -174,7 +174,7 @@ class SlowlogCheck
       break if minute_precision(time) <= minute_precision(last_time_submitted)
 
       command = slowlog[3][0]
-      value =  slowlog_microseconds(slowlog)
+      value = slowlog_microseconds(slowlog)
       bucket = minute_precision(time)
 
       if result[bucket].nil?
