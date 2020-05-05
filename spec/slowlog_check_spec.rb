@@ -17,13 +17,13 @@ describe SlowlogCheck do
   let(:frozen_time) { Time.utc(2020,4,20,4,20,45) }
   let(:ddog_time) { Time.utc(2020,4,20,4,16).to_i * 1000.0 }
 
-  def redis_slowlog(index, time, microseconds)
+  def redis_slowlog(index, time, microseconds, command='eval')
     [
       index,
       time.to_i,
       microseconds,
       [
-        "eval",
+        command,
         "",
         "0"
       ],
