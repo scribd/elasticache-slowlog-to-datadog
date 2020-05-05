@@ -49,7 +49,7 @@ describe SlowlogCheck do
     # ddog mock
     allow(ddog).to receive(:get_points).with(
       'rspec.redis.slowlog.micros.95percentile{replication_group:replicationgroup}',
-      Time.now - 86400,
+      Time.now - 7200,
       Time.now
     ) {
         [

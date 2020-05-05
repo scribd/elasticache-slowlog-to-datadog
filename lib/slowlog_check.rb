@@ -29,12 +29,10 @@ class SlowlogCheck
     return resp
   end
 
-  # TODO: Rather than hard code a day lookback,
-  # look back at an increasing increment until hitting some max value
-  def last_datadog_metrics_submitted_by_me_in_the_last_day
+  def last_datadog_metrics_submitted_by_me_in_the_last_2_hours
     resp = @ddog.get_points(
       "#{@metricname}.95percentile{replication_group:#{replication_group}}",
-      Time.now - 86400,
+      Time.now - 7200,
       Time.now
     )
 
@@ -49,7 +47,7 @@ class SlowlogCheck
   end
 
   def last_datadog_metric
-    series = last_datadog_metrics_submitted_by_me_in_the_last_day[1].fetch("series")
+    series = last_datadog_metrics_submitted_by_me_in_the_last_2_hours[1].fetch("series")
     if series == [] # First invocation
       return minute_precision(Time.now - 3600)
     else
