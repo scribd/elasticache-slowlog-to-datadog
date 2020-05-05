@@ -15,7 +15,7 @@ describe SlowlogCheck do
     )
   }
   let(:frozen_time) { Time.utc(2020,4,20,4,20,45) }
-  let(:ddog_time) { Time.utc(2020,4,20,4,16).to_i * 1000.0 }
+  let(:four_minutes_ago) { Time.utc(2020,4,20,4,16,12).to_i * 1000.0 }
 
   def redis_slowlog(index, time, microseconds, command='eval')
     [
@@ -70,7 +70,7 @@ describe SlowlogCheck do
                   "query_index"=>0,
                   "aggr"=>nil,
                   "scope"=>"replication_group:replicationgroup",
-                  "pointlist"=>[[ddog_time, 99994.0], [ddog_time - 5000, 99378.0]],
+                  "pointlist"=>[[four_minutes_ago, 99994.0], [four_minutes_ago - 5000, 99378.0]],
                   "expression"=>"rspec.redis.slowlog.micros.95percentile{replication_group:infraeng-dev-redis}",
                   "unit"=>nil,
                   "display_name"=>"rspec.redis.slowlog.micros.95percentile"
