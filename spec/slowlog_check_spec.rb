@@ -38,10 +38,10 @@ describe SlowlogCheck do
     allow(redis).to receive(:connection) { {host: 'master.replicationgroup.abcde.use2.cache.amazonaws.com' } }
     allow(redis).to receive(:slowlog).with('get', 128) {
       [
-         redis_slowlog( 3, Time.utc(2020,04,20,04,19,45), 400000 ),
-         redis_slowlog( 2, Time.utc(2020,04,20,04,19,15), 100000 ),
-         redis_slowlog( 1, Time.utc(2020,04,20,04,18,45), 100000 ),
-         redis_slowlog( 0, Time.utc(2020,04,20,04,18,15), 200000 ),
+         redis_slowlog( 3, Time.utc(2020,4,20,4,19,45), 400000 ),
+         redis_slowlog( 2, Time.utc(2020,4,20,4,19,15), 100000 ),
+         redis_slowlog( 1, Time.utc(2020,4,20,4,18,45), 100000 ),
+         redis_slowlog( 0, Time.utc(2020,4,20,4,18,15), 200000 ),
       ]
     }
 
@@ -96,10 +96,10 @@ describe SlowlogCheck do
       before(:each) do
         allow(redis).to receive(:slowlog).with('get', 128) {
           [
-             redis_slowlog( 3, Time.utc(2020,04,20,04,19,45), 400000 ),
-             redis_slowlog( 2, Time.utc(2020,04,20,04,19,15), 100000 ),
-             redis_slowlog( 1, Time.utc(2020,04,20,04,18,45), 100000 ),
-             redis_slowlog( 0, Time.utc(2020,04,20,04,18,15), 200000 ),
+             redis_slowlog( 3, Time.utc(2020,4,20,4,19,45), 400000 ),
+             redis_slowlog( 2, Time.utc(2020,4,20,4,19,15), 100000 ),
+             redis_slowlog( 1, Time.utc(2020,4,20,4,18,45), 100000 ),
+             redis_slowlog( 0, Time.utc(2020,4,20,4,18,15), 200000 ),
           ]
         }
       end
@@ -112,13 +112,13 @@ describe SlowlogCheck do
       before(:each) do
         allow(redis).to receive(:slowlog).with('get', 128) {
           Array.new(129) { |x|
-            redis_slowlog(x, Time.utc(2020,04,20,04,00,00) + x, x * 1000)
+            redis_slowlog(x, Time.utc(2020,4,20,4,0,0) + x, x * 1000)
           }.reverse[0..127]
         }
 
         allow(redis).to receive(:slowlog).with('get', 256) {
           Array.new(129) { |x|
-            redis_slowlog(x, Time.utc(2020,04,20,04,00,00) + x, x * 1000)
+            redis_slowlog(x, Time.utc(2020,4,20,4,0,0) + x, x * 1000)
           }.reverse
         }
 
@@ -147,7 +147,7 @@ describe SlowlogCheck do
     context 'redis has 567 entries and no zeroeth entry' do
       let(:sauce) {
           Array.new(567) { |x|
-            redis_slowlog(x + 1, Time.utc(2020,04,20,03,20,00) + x, x)
+            redis_slowlog(x + 1, Time.utc(2020,4,20,3,20,0) + x, x)
           }.reverse
         }
       before(:each) do
@@ -298,10 +298,9 @@ describe SlowlogCheck do
     }
     it { is_expected.to eq(
                             {
-                              Time.utc(2020,04,20,04,17) => nil,
-                              Time.utc(2020,04,20,04,18) => bucket18,
-                              Time.utc(2020,04,20,04,19) => bucket19,
-                              Time.utc(2020,04,20,04,20) => nil
+                              Time.utc(2020,4,20,4,17).localtime => {},
+                              Time.utc(2020,4,20,4,18).localtime => bucket18,
+                              Time.utc(2020,4,20,4,19).localtime => bucket19,
                             }
                           )
     }
@@ -346,13 +345,13 @@ describe SlowlogCheck do
 
       expect(ddog).to have_received(:emit_points).with(
         "rspec.redis.slowlog.micros.avg",
-        [[Time.utc(2020,04,20,04,18), 150000]],
+        [[Time.utc(2020,4,20,4,18), 150000]],
         options
       )
 
       expect(ddog).to have_received(:emit_points).with(
         "rspec.redis.slowlog.micros.avg",
-        [[Time.utc(2020,04,20,04,19), 250000]],
+        [[Time.utc(2020,4,20,4,19), 250000]],
         options
       )
     end
