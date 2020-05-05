@@ -150,15 +150,15 @@ class SlowlogCheck
         }
       elsif result[bucket][command].nil?
         result[bucket][command] = {
-            values: [value],
-            avg: value,
-            count: 1,
-            median: value,
-            _95percentile: value,
-            min: value,
-            max: value,
-            sum: value
-          }
+          values: [value],
+          avg: value,
+          count: 1,
+          median: value,
+          _95percentile: value,
+          min: value,
+          max: value,
+          sum: value
+        }
       else
         result[bucket][command] = add_metric_to_bucket(result[bucket][command], value)
       end
@@ -297,7 +297,7 @@ class SlowlogCheck
         name,
         metadata.transform_keys { |key| key.to_sym }
       )
-    LOGGER.info "Updating metadata for #{name} #{status_or_error(resp)}"
+      LOGGER.info "Updating metadata for #{name} #{status_or_error(resp)}"
     end
   end
 
