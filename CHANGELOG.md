@@ -1,3 +1,15 @@
+# [1.1.0](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.0.1...v1.1.0) (2020-05-05)
+
+
+### Bug Fixes
+
+* do not report a bucket we've already reported && do not report a bucket that has not completed. ([9dbd02e](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/9dbd02eb64447ad00691ff498f5b44f56f4d43c6))
+
+
+### Features
+
+* When slowlogs no longer appear following a slowlog event, post a zero for that command. ([ed7b094](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/ed7b0940d955c239e554ed69e7bd5f90cbe7f52a))
+
 ## [1.0.1](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.0.0...v1.0.1) (2020-04-29)
 
 
