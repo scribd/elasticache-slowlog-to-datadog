@@ -216,16 +216,13 @@ describe SlowlogCheck do
   end
 
   describe '#reporting_interval' do
-    subject { slowlog_check.reporting_interval.map {|x| x[0]} }
-    it 'generates an array at minute intervals' do
-      minute_precision_time = slowlog_check.minute_precision(Time.now)
-
-      expect(subject).to contain_exactly(
-        minute_precision_time,
-        minute_precision_time - 60,
-        minute_precision_time - 120,
-        minute_precision_time - 180
-      )
+    subject { slowlog_check.reporting_interval }
+    focus 'generates an array at minute intervals' do
+      expect(subject).to eq(
+                             Time.utc(2020,4,20,4,19).localtime => {},
+                             Time.utc(2020,4,20,4,18).localtime => {},
+                             Time.utc(2020,4,20,4,17).localtime => {},
+                         )
     end
   end
 

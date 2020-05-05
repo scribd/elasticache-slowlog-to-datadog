@@ -78,10 +78,10 @@ class SlowlogCheck
   end
 
   def reporting_interval
-    now_i = Time.now.to_i
+    now_i = minute_precision(Time.now).to_i - 60
     start_time_i = last_time_submitted.to_i + 60
     times = (start_time_i..now_i).step(60).to_a
-    Hash[times.collect {|time| [Time.at(time), nil]}]
+    Hash[times.collect {|time| [Time.at(time), {}]}]
   end
 
   def _95percentile(sorted_values)
