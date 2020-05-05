@@ -261,6 +261,34 @@ describe SlowlogCheck do
     it { is_expected.to eq(result) }
   end
 
+  describe '#pad_results_with_zero' do
+    let(:report) {
+      {
+        Time.utc(2020,4,20,4,16) => {"a" => {}},
+        Time.utc(2020,4,20,4,17) => {"b" => {}},
+        Time.utc(2020,4,20,4,18) => {},
+        Time.utc(2020,4,20,4,19) => {"a" => {}},
+      }
+
+    }
+    subject {slowlog_check.pad_results_with_zero(report)}
+    it { is_expected.to eq(
+                          {
+                            Time.utc(2020,4,20,4,16) => {"a" => {}},
+                            Time.utc(2020,4,20,4,17) => {"b" => {}, "a" => slowlog_check.empty_values},
+                            Time.utc(2020,4,20,4,18) => {"b" => slowlog_check.empty_values},
+                            Time.utc(2020,4,20,4,19) => {"a" => {}},
+
+                          }
+                        )
+    }
+
+    describe '#new_commands' do
+      subject { slowlog_check.new_commands(Time.utc(2020,4,20,4,16), {"a" => {}}) }
+      it { is_expected.to eq({"a" => Time.utc(2020,4,20,4,16).localtime}) }
+    end
+  end
+
   describe '#slowlogs_by_flush_interval' do
     subject { slowlog_check.slowlogs_by_flush_interval }
     let(:bucket18) {
@@ -302,6 +330,51 @@ describe SlowlogCheck do
                           }
                         )
     }
+
+    describe 'remembers commands it has seen' do
+      def example_bucket(index)
+        value = index + 1000
+        collector = {
+          index.to_s =>
+            {
+              _95percentile: value,
+              avg: value,
+              count: value == 0 ? value : 1,
+              max: value,
+              median: value,
+              min: value,
+              sum: value,
+              values: value == 0 ? [] : [value]
+            }
+        }
+        if index > 0
+          collector.merge!({(index -1).to_s => slowlog_check.empty_values})
+        end
+        collector
+      end
+
+      before(:example) {
+        allow(redis).to receive(:slowlog).with('get', 128) {
+          Array.new(5) { |x|
+            redis_slowlog(x, Time.utc(2020,04,20,04,15,10) + (x * 60), x + 1000, x.to_s)
+          }.reverse
+        }
+
+        allow(slowlog_check).to receive(:last_time_submitted) { Time.utc(2020,4,20,4,14) }
+      }
+
+      it { is_expected.to eq(
+                            {
+                              Time.utc(2020,4,20,4,15).localtime => example_bucket(0),
+                              Time.utc(2020,4,20,4,16).localtime => example_bucket(1),
+                              Time.utc(2020,4,20,4,17).localtime => example_bucket(2),
+                              Time.utc(2020,4,20,4,18).localtime => example_bucket(3),
+                              Time.utc(2020,4,20,4,19).localtime => example_bucket(4),
+                            }
+                          )
+      }
+
+    end
   end
 
   describe '#default_tags' do

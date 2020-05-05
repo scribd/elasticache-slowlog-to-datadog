@@ -77,6 +77,7 @@ class SlowlogCheck
     slowlog[2]
   end
 
+
   def reporting_interval
     now_i = minute_precision(Time.now).to_i - 60
     start_time_i = last_time_submitted.to_i + 60
@@ -125,6 +126,47 @@ class SlowlogCheck
     return redis_slowlog(length * 2)
   end
 
+  def empty_values
+    {
+      values: [],
+      avg: 0,
+      count: 0,
+      median: 0,
+      _95percentile: 0,
+      min: 0,
+      max: 0,
+      sum: 0
+    }
+  end
+
+  def new_commands(timestamp, timebucket)
+    result = {}
+    timebucket.keys.each do |command|
+      result[command] = timestamp
+    end
+    result
+  end
+
+  def pad_results_with_zero(report)
+    @seen_commands ||= {}
+    report.keys.sort.each do |timebucket|
+      # Collect new_commands
+      new_commands = new_commands(timebucket, report[timebucket])
+
+      # donut zero existing commands
+      commands_to_zero = @seen_commands.keys - new_commands.keys
+      commands_to_zero.each do |command|
+        # inject_zeroing_commands
+        report[timebucket].merge!({command => empty_values})
+        # And remove it from the seen_commands queue
+        @seen_commands.delete(command)
+      end
+      # add new_commands to seen_commands queue
+      @seen_commands.merge!(new_commands)
+    end
+    report
+  end
+
   def slowlogs_by_flush_interval
     result = reporting_interval
     redis_slowlog.each do |slowlog|
@@ -164,7 +206,7 @@ class SlowlogCheck
       end
     end
 
-    result
+    pad_results_with_zero(result)
   end
 
   def default_tags
