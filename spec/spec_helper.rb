@@ -98,3 +98,20 @@ RSpec.configure do |config|
   Kernel.srand config.seed
 =end
 end
+
+require 'slowlog_check'
+
+def redis_slowlog(index, time, microseconds, command = 'eval')
+  [
+    index,
+    time.to_i,
+    microseconds,
+    [
+      command,
+      "",
+      "0"
+    ],
+    "192.0.2.40:55700",
+    ""
+  ]
+end

@@ -3,13 +3,11 @@
 
 require 'logger'
 require 'date'
-require 'redis'
 require 'dogapi'
 require_relative 'lib/slowlog_check'
 
 LOGGER = Logger.new($stdout)
 LOGGER.level = Logger::INFO
-LOGGER.freeze
 
 def event_time
   # DateTime because Time does not natively parse AWS CloudWatch Event time
@@ -23,6 +21,7 @@ def log_context
   LOGGER.debug(@event)
   LOGGER.info "Event time: #{event_time}."
 end
+
 
 def lambda_handler(event: {}, context: {})
   @event = event
@@ -49,10 +48,9 @@ def lambda_handler(event: {}, context: {})
         ENV.fetch('DATADOG_API_KEY'),
         ENV.fetch('DATADOG_APP_KEY')
       ),
-      redis: Redis.new(
-        host: ENV.fetch('REDIS_HOST'),
-        ssl: :true
-      ),
+      redis: {
+        host: ENV.fetch('REDIS_HOST')
+      },
       namespace: ENV.fetch('NAMESPACE'),
       env: ENV.fetch('ENV'),
       metricname: ENV.fetch('METRICNAME', 'elasticache.slowlog')
