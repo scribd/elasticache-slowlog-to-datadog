@@ -3,7 +3,7 @@
 
 ### Features
 
-* trigger alpha release ([b43631e](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/b43631e75a0eb0c2e85fa064052515740c4f9f10))
+* performance and style optimizations ([b43631e](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/b43631e75a0eb0c2e85fa064052515740c4f9f10))
 
 # [1.2.0](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.1.0...v1.2.0) (2020-06-10)
 
