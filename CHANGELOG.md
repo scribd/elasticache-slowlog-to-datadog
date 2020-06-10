@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.1.0...v1.2.0) (2020-06-10)
+
+
+### Features
+
+* Add support for the 4 permutations of Elasticache redis endpoints ([67f0526](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/67f0526e41b049ffcaee3b14689ae60a1e4cf7e8))
+
 # [1.1.0](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.0.1...v1.1.0) (2020-05-05)
 
 
