@@ -27,7 +27,7 @@ describe SlowlogCheck do
     slowlog_check.instance_variable_set(:@redis, redis)
     allow(redis).to receive(:replication_group).and_call_original
 
-    allow(redis).to receive(:slowlog) {
+    allow(redis).to receive(:slowlog_get) {
       [
         redis_slowlog(3, Time.utc(2020, 4, 20, 4, 19, 45), 400_000),
         redis_slowlog(2, Time.utc(2020, 4, 20, 4, 19, 15), 100_000),
@@ -257,7 +257,7 @@ describe SlowlogCheck do
       end
 
       before(:example) do
-        allow(redis).to receive(:slowlog) {
+        allow(redis).to receive(:slowlog_get) {
           Array.new(5) do |x|
             redis_slowlog(x, Time.utc(2020, 0o4, 20, 0o4, 15, 10) + (x * 60), x + 1000, x.to_s)
           end.reverse

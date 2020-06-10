@@ -152,7 +152,7 @@ class SlowlogCheck
 
   def slowlogs_by_flush_interval
     result = reporting_interval
-    @redis.slowlog.each do |slowlog|
+    @redis.slowlog_get.each do |slowlog|
       time = slowlog_time(slowlog)
       break if minute_precision(time) <= minute_precision(last_time_submitted)
 

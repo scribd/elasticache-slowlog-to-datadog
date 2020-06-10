@@ -189,14 +189,14 @@ describe SlowlogCheck::Redis do
     end
   end
 
-  describe '#slowlog' do
+  describe '#slowlog_get' do
     include_context 'CME:TLS' # which context doesn't matter, so pick any one
 
     # mock the redis-rb gem
     let(:redis_rb) { double }
-    before(:example) { allow(redis).to receive(:redis).and_return(redis_rb) }
+    before(:example) { allow(redis).to receive(:redis_rb).and_return(redis_rb) }
 
-    describe '#slowlog.length' do
+    describe '#slowlog_get.length' do
       context 'redis has 4 entries' do
         before(:each) do
           # see spec_helper for redis_slowlog definition
@@ -210,7 +210,7 @@ describe SlowlogCheck::Redis do
           }
         end
 
-        subject { redis.slowlog.length }
+        subject { redis.slowlog_get.length }
         it { is_expected.to eq(4) }
       end
 
@@ -229,7 +229,7 @@ describe SlowlogCheck::Redis do
           }
         end
 
-        subject { redis.slowlog.length }
+        subject { redis.slowlog_get.length }
         it { is_expected.to eq(129) }
       end
 
@@ -245,7 +245,7 @@ describe SlowlogCheck::Redis do
           }
         end
 
-        subject { redis.slowlog.length }
+        subject { redis.slowlog_get.length }
         it { is_expected.to eq(1_048_576 * 2) } # with the last entry dropped
       end
 
@@ -261,7 +261,7 @@ describe SlowlogCheck::Redis do
           }
         end
 
-        subject { redis.slowlog.length }
+        subject { redis.slowlog_get.length }
         it { is_expected.to eq(567) }
       end
     end

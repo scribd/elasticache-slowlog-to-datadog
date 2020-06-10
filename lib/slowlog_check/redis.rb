@@ -27,8 +27,8 @@ class SlowlogCheck
       end
     end
 
-    def redis
-      @redis ||= ::Redis.new(params)
+    def redis_rb
+      @redis_rb ||= ::Redis.new(params)
     end
 
     def replication_group
@@ -39,13 +39,13 @@ class SlowlogCheck
       end
     end
 
-    def slowlog(length = 128)
-      resp = redis.slowlog('get', length)
+    def slowlog_get(length = 128)
+      resp = redis_rb.slowlog('get', length)
 
       return resp if length > MAXLENGTH
       return resp if did_i_get_it_all?(resp)
 
-      slowlog(length * 2)
+      slowlog_get(length * 2)
     end
 
     private

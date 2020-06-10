@@ -14,7 +14,7 @@ LOGGER.level = Logger::WARN
 
 REDIS = SlowlogCheck::Redis.new(
   host: ENV.fetch('REDIS_HOST')
-).redis
+).redis_rb
 
 if ARGV[0].nil?
   raise "Specify milliseconds to inject as the first positional argument to `#{__FILE__}`"
