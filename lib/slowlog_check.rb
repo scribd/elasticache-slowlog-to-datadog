@@ -2,25 +2,16 @@
 require 'logger'
 
 class SlowlogCheck
+  require_relative 'slowlog_check/redis'
+
   ::LOGGER ||= ::Logger.new($stdout)
-  MAXLENGTH = 1048576 #255 levels of recursion for #
 
   def initialize(params = {})
     @ddog = params.fetch(:ddog)
-    @redis = params.fetch(:redis)
+    @redis= SlowlogCheck::Redis.new(params.fetch(:redis))
     @metricname = params.fetch(:metricname)
     @namespace = params.fetch(:namespace)
     @env = params.fetch(:env)
-  end
-
-  def replication_group
-    host = @redis.connection.fetch(:host)
-    matches = /\w\.(?<replication_group>[\w-]+)\.\w+\.\w+\.cache\.amazonaws\.com/.match(host)
-    if matches
-      matches[:replication_group]
-    else
-      raise "Unable to parse REDIS_HOST. Is #{host} a valid elasticache endpoint?"
-    end
   end
 
   def status_or_error(resp)
@@ -31,7 +22,7 @@ class SlowlogCheck
 
   def last_datadog_metrics_submitted_by_me_in_the_last_2_hours
     resp = @ddog.get_points(
-      "#{@metricname}.95percentile{replication_group:#{replication_group}}",
+      "#{@metricname}.95percentile{replication_group:#{@redis.replication_group}}",
       Time.now - 7200,
       Time.now
     )
@@ -114,17 +105,6 @@ class SlowlogCheck
     }
   end
 
-  def did_i_get_it_all?(slowlog)
-    slowlog[-1][0] == 0
-  end
-
-  def redis_slowlog(length = 128)
-    resp = @redis.slowlog('get', length)
-
-    return resp if length > MAXLENGTH
-    return resp if did_i_get_it_all?(resp)
-    return redis_slowlog(length * 2)
-  end
 
   def empty_values
     {
@@ -169,7 +149,7 @@ class SlowlogCheck
 
   def slowlogs_by_flush_interval
     result = reporting_interval
-    redis_slowlog.each do |slowlog|
+    @redis.slowlog.each do |slowlog|
       time = slowlog_time(slowlog)
       break if minute_precision(time) <= minute_precision(last_time_submitted)
 
@@ -211,8 +191,8 @@ class SlowlogCheck
 
   def default_tags
     {
-      replication_group: replication_group,
-      service: replication_group,
+      replication_group: @redis.replication_group,
+      service: @redis.replication_group,
       namespace: @namespace,
       aws: 'true',
       env: @env
@@ -224,7 +204,7 @@ class SlowlogCheck
     type = params.fetch(:type, 'gauge')
     interval = params.fetch(:interval, 60)
     points = params.fetch(:points)
-    host = params.fetch(:host, replication_group)
+    host = params.fetch(:host, @redis.replication_group)
     tags = params.fetch(:tags, default_tags)
 
     LOGGER.info "Sending slowlog entry: #{metric}: #{points.first[1]}µs executing #{tags[:command]} at #{points.first[0]}."
@@ -238,7 +218,7 @@ class SlowlogCheck
         tags: tags
       }
     )
-    raise "Error submitting metric for #{replication_group}" unless status_or_error(resp) == "ok"
+    raise "Error submitting metric for #{@redis.replication_group}" unless status_or_error(resp) == "ok"
 
     # Sigh. After doing all the work to pass around Time objects, dogapi-rb changes this to an integer.
     @last_time_submitted = Time.at(points.first[0])

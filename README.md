@@ -24,7 +24,7 @@ The following parameters need to be supplied to the lambda function.
 
 Environment Variable | Type   | Description                                                   | Required | Default
 ---------------------|--------|---------------------------------------------------------------|----------|---------
-REDIS_HOST           | string | FQDN of the elasticache redis endpoint                        | yes      | -
+REDIS_HOST           | string | FQDN or URI of the elasticache redis endpoint                 | yes      | -
 DATADOG_API_KEY      | string | Datadog API Key                                               | no       | -
 DATADOG_APP_KEY      | string | Datadog API Key                                               | no       | -
 NAMESPACE            | string | "namespace" tag to apply to Datadog metric                    | yes      | -
@@ -50,7 +50,7 @@ DO NOT use this script in production environments, as it will CPU thrash the tar
 
 Environment Variable | Type   | Description                                                   | Required | Default
 ---------------------|--------|---------------------------------------------------------------|----------|---------
-REDIS_HOST           | string | FQDN of the elasticache redis endpoint                        | yes      | -
+REDIS_HOST           | string | FQDN or URI of the elasticache redis endpoint                 | yes      | -
 
 
 # Requirements

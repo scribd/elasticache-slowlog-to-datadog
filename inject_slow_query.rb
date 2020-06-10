@@ -5,14 +5,14 @@
 
 require 'logger'
 require 'redis'
+require_relative 'lib/slowlog_check'
 
 LOGGER = Logger.new($stdout)
 LOGGER.level = Logger::WARN
 
-REDIS = Redis.new(
-  host: ENV.fetch('REDIS_HOST'),
-  ssl: :true
-  )
+REDIS = SlowlogCheck::Redis.new(
+  host: ENV.fetch('REDIS_HOST')
+).redis
 
 if ARGV[0].nil?
   raise "Specify milliseconds to inject as the first positional argument to `#{__FILE__}`"
