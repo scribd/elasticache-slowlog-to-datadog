@@ -28,7 +28,7 @@ class SlowlogCheck
     end
 
     def redis
-      @redis ||= Redis.new(params)
+      @redis ||= ::Redis.new(params)
     end
 
     def replication_group
