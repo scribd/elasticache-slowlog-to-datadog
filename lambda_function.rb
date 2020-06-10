@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 # Copyright 2020 Scribd, Inc.
 
 require 'logger'
@@ -11,7 +13,7 @@ LOGGER.level = Logger::INFO
 
 def event_time
   # DateTime because Time does not natively parse AWS CloudWatch Event time
-  DateTime.rfc3339(@event.fetch("time", DateTime.now.rfc3339))
+  DateTime.rfc3339(@event.fetch('time', DateTime.now.rfc3339))
 end
 
 def log_context
@@ -22,7 +24,6 @@ def log_context
   LOGGER.info "Event time: #{event_time}."
 end
 
-
 def lambda_handler(event: {}, context: {})
   @event = event
   log_context
@@ -30,7 +31,7 @@ def lambda_handler(event: {}, context: {})
   ssm_path = ENV.fetch('SSM_PATH', false)
   if ssm_path
     require 'aws-sdk-ssm'
-    resp = Aws::SSM::Client.new().get_parameters_by_path(
+    resp = Aws::SSM::Client.new.get_parameters_by_path(
       path: "/#{ssm_path}/",
       recursive: true,
       with_decryption: true
@@ -64,6 +65,4 @@ def lambda_handler(event: {}, context: {})
   nil
 end
 
-if __FILE__ == $0
-  lambda_handler
-end
+lambda_handler if __FILE__ == $PROGRAM_NAME

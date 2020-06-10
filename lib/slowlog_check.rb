@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Copyright 2020 Scribd, Inc.
 require 'logger'
 
@@ -8,16 +10,17 @@ class SlowlogCheck
 
   def initialize(params = {})
     @ddog = params.fetch(:ddog)
-    @redis= SlowlogCheck::Redis.new(params.fetch(:redis))
+    @redis = SlowlogCheck::Redis.new(params.fetch(:redis))
     @metricname = params.fetch(:metricname)
     @namespace = params.fetch(:namespace)
     @env = params.fetch(:env)
   end
 
   def status_or_error(resp)
-    return resp[1].fetch("status") if resp[1].key?("status")
-    return resp[1].fetch("errors") if resp[1].key?("errors")
-    return resp
+    return resp[1].fetch('status') if resp[1].key?('status')
+    return resp[1].fetch('errors') if resp[1].key?('errors')
+
+    resp
   end
 
   def last_datadog_metrics_submitted_by_me_in_the_last_2_hours
@@ -27,7 +30,8 @@ class SlowlogCheck
       Time.now
     )
 
-    raise "Error getting last datadog metric submitted by me" unless status_or_error(resp) == "ok"
+    raise 'Error getting last datadog metric submitted by me' unless status_or_error(resp) == 'ok'
+
     resp
   end
 
@@ -38,15 +42,15 @@ class SlowlogCheck
   end
 
   def last_datadog_metric
-    series = last_datadog_metrics_submitted_by_me_in_the_last_2_hours[1].fetch("series")
+    series = last_datadog_metrics_submitted_by_me_in_the_last_2_hours[1].fetch('series')
     if series == [] # First invocation
-      return minute_precision(Time.now - 3600)
+      minute_precision(Time.now - 3600)
     else
       minute_precision(
         Time.at(
           series
             .first
-            .fetch("pointlist")
+            .fetch('pointlist')
             .map { |x| x[0] }
             .max
             .to_i / 1000
@@ -57,6 +61,7 @@ class SlowlogCheck
 
   def last_time_submitted
     return @last_time_submitted if defined? @last_time_submitted
+
     @last_time_submitted = last_datadog_metric
   end
 
@@ -67,7 +72,6 @@ class SlowlogCheck
   def slowlog_microseconds(slowlog)
     slowlog[2]
   end
-
 
   def reporting_interval
     now_i = minute_precision(Time.now).to_i - 60
@@ -105,7 +109,6 @@ class SlowlogCheck
     }
   end
 
-
   def empty_values
     {
       values: [],
@@ -137,7 +140,7 @@ class SlowlogCheck
       commands_to_zero = @seen_commands.keys - new_commands.keys
       commands_to_zero.each do |command|
         # inject_zeroing_commands
-        report[timebucket].merge!({command => empty_values})
+        report[timebucket].merge!({ command => empty_values })
         # And remove it from the seen_commands queue
         @seen_commands.delete(command)
       end
@@ -218,7 +221,7 @@ class SlowlogCheck
         tags: tags
       }
     )
-    raise "Error submitting metric for #{@redis.replication_group}" unless status_or_error(resp) == "ok"
+    raise "Error submitting metric for #{@redis.replication_group}" unless status_or_error(resp) == 'ok'
 
     # Sigh. After doing all the work to pass around Time objects, dogapi-rb changes this to an integer.
     @last_time_submitted = Time.at(points.first[0])
@@ -236,7 +239,7 @@ class SlowlogCheck
         all_metrics = timebucket.fetch(command)
 
         # Emit most metrics
-        [:avg, :count, :median, :min, :max].each do |metric|
+        %i[avg count median min max].each do |metric|
           emit_point(
             metric: metric.to_s,
             type: metric == :count ? 'rate' : 'gauge',
@@ -251,59 +254,57 @@ class SlowlogCheck
           points: [[timestamp, all_metrics.fetch(:_95percentile)]],
           tags: default_tags.merge(command: command)
         )
-
       end
     end
   end
-
 
   ##
   # Metadata
 
   def metric_metadatas
-    [
-      'avg',
-      'median',
-      'min',
-      'max',
-      '95percentile'
-    ].map { |metric|
+    %w[
+      avg
+      median
+      min
+      max
+      95percentile
+    ].map do |metric|
       {
-        "name" => @metricname + '.' + metric,
-        "description" => "slowlog duration #{metric} (µs)",
-        "short_name" => "#{metric} (µs)",
-        "integration" => nil,
-        "statsd_interval" => 60,
-        "per_unit" => nil,
-        "type" => "gauge",
-        "unit" => "microsecond"
+        'name' => @metricname + '.' + metric,
+        'description' => "slowlog duration #{metric} (µs)",
+        'short_name' => "#{metric} (µs)",
+        'integration' => nil,
+        'statsd_interval' => 60,
+        'per_unit' => nil,
+        'type' => 'gauge',
+        'unit' => 'microsecond'
       }
-    }.push(
+    end.push(
       {
-        "name" => @metricname + '.count',
-        "type" => 'rate',
-        "description" => 'slowlog entries per minute',
-        "short_name" => 'per minute',
-        "per_unit" => 'minute',
-        "integration" => nil,
-        "unit" => 'entry',
-        "statsd_interval" => 60
+        'name' => @metricname + '.count',
+        'type' => 'rate',
+        'description' => 'slowlog entries per minute',
+        'short_name' => 'per minute',
+        'per_unit' => 'minute',
+        'integration' => nil,
+        'unit' => 'entry',
+        'statsd_interval' => 60
       }
     )
   end
 
   def get_metadatas
-    [
-      'avg',
-      'median',
-      'min',
-      'max',
-      '95percentile',
-      'count'
+    %w[
+      avg
+      median
+      min
+      max
+      95percentile
+      count
     ].map do |metric|
       name = @metricname + '.' + metric
       @ddog.get_metadata(name)[1]
-        .merge("name" => name)
+           .merge('name' => name)
     end
   end
 
@@ -311,16 +312,14 @@ class SlowlogCheck
     metric_metadatas - get_metadatas
   end
 
-
   def update_metadatas
     diff_metadatas.each do |metadata|
-      name = metadata.delete("name")
+      name = metadata.delete('name')
       resp = @ddog.update_metadata(
         name,
-        metadata.transform_keys { |key| key.to_sym }
+        metadata.transform_keys(&:to_sym)
       )
       LOGGER.info "Updating metadata for #{name} #{status_or_error(resp)}"
     end
   end
-
 end
