@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.3.0...v1.3.1) (2023-02-09)
+
+
+### Bug Fixes
+
+* update to ruby 2.7.4 ([2b0bc50](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/2b0bc50b0267f10d2108bf4cd5cac3f933756291))
+
 # [1.3.0](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.2.0...v1.3.0) (2020-06-10)
 
 
