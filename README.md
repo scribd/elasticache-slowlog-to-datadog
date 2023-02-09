@@ -14,7 +14,7 @@ and submits slowlog entry metrics to a Datadog account.
 
 ## Usage
 
-This lambda function was built and tested with the `ruby-2.5` runtime.
+This lambda function was built and tested with the `ruby-2.7` runtime.
 
 Deploy the "Full zip distribution" from the [releases pages](https://github.com/scribd/elasticache-slowlog-to-datadog/releases) to AWS lambda
 
