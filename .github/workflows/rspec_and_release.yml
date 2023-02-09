@@ -7,16 +7,16 @@ on:
 jobs:
   rspec:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Ruby 2.5.8
-      uses: actions/setup-ruby@v1
+    - uses: actions/checkout@v3
+
+    - name: Set up Ruby 2.7.4
+      uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 2.5.8
+        ruby-version: 2.7.4
     - name: Test with Rspec
       run: |
-          gem install --no-rdoc --no-ri bundler
+          gem install bundler
           bundle install --jobs 4 --retry 3
           bundle exec rspec
   release:
@@ -25,14 +25,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Ruby 2.5.8
-      uses: actions/setup-ruby@v1
+    - uses: actions/checkout@v3
+    - name: Set up Ruby 2.7.4
+      uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 2.5.8
+        ruby-version: 2.7.4
     - name: Build with bundler
       run: |
-          gem install --no-rdoc --no-ri bundler
+          gem install bundler
           bundle install --jobs 4 --retry 3 --deployment --without "development test"
     - name: Zip
       run : |
