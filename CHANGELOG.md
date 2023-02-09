@@ -1,3 +1,13 @@
+# [2.0.0](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.3.1...v2.0.0) (2023-02-09)
+
+
+* feat!: Migrates to ruby 2.7.4 ([77fd96c](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/77fd96c4821f97f602e730c64aff5e9719d3112a))
+
+
+### BREAKING CHANGES
+
+* Ruby 2.5 is no longer supported
+
 ## [1.3.1](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.3.0...v1.3.1) (2023-02-09)
 
 
