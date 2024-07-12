@@ -14,7 +14,7 @@ and submits slowlog entry metrics to a Datadog account.
 
 ## Usage
 
-This lambda function was built and tested with the `ruby-2.7` runtime.
+This lambda function was built and tested with the `ruby-3.3` runtime.
 
 Deploy the "Full zip distribution" from the [releases pages](https://github.com/scribd/elasticache-slowlog-to-datadog/releases) to AWS lambda
 
@@ -57,7 +57,7 @@ REDIS_HOST           | string | FQDN or URI of the elasticache redis endpoint   
 
 To use *elasticache-slowlog-to-datadog* you need:
 
-- An AWS account with an Elasticache instance running the `redis5.0` engine.
+- An AWS account with an Elasticache instance running the `redis5.0+` engine.
 - A Datadog account
 
 # Development
