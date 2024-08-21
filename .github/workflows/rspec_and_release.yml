@@ -8,7 +8,7 @@ jobs:
   rspec:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Ruby 3.3.4
       uses: ruby/setup-ruby@v1
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Ruby 3.3.4
       uses: ruby/setup-ruby@v1
       with:
@@ -39,7 +39,7 @@ jobs:
         zip -r slowlog_check.zip ./*
     - name: Semantic Release
       id: semantic
-      uses: cycjimmy/semantic-release-action@v3
+      uses: cycjimmy/semantic-release-action@v4
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
