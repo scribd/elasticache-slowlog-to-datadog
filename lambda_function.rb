@@ -1,8 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Copyright 2020 Scribd, Inc.
-
 require 'logger'
 require 'date'
 require 'dogapi'
@@ -28,8 +26,8 @@ def lambda_handler(event: {}, context: {})
   @event = event
   log_context
 
-  ssm_path = ENV.fetch('SSM_PATH', false)
-  if ssm_path
+  # Optionally hydrate env from SSM
+  if (ssm_path = ENV.fetch('SSM_PATH', false))
     require 'aws-sdk-ssm'
     resp = Aws::SSM::Client.new.get_parameters_by_path(
       path: "/#{ssm_path}/",
@@ -43,15 +41,19 @@ def lambda_handler(event: {}, context: {})
     end
   end
 
-  unless defined? @slowlog_check
+  unless defined?(@slowlog_check)
+    # Give Dogapi a stable hostname so it won't call the `hostname` binary
+    dd_hostname = ENV['HOSTNAME'] || "slowlog-check-#{ENV.fetch('ENV', 'env')}-#{ENV.fetch('NAMESPACE', 'ns')}"
+
+    dd_client = Dogapi::Client.new(
+      ENV.fetch('DATADOG_API_KEY'),
+      ENV.fetch('DATADOG_APP_KEY'),
+      dd_hostname # 3rd arg = host
+    )
+
     @slowlog_check = SlowlogCheck.new(
-      ddog: Dogapi::Client.new(
-        ENV.fetch('DATADOG_API_KEY'),
-        ENV.fetch('DATADOG_APP_KEY')
-      ),
-      redis: {
-        host: ENV.fetch('REDIS_HOST')
-      },
+      ddog: dd_client,
+      redis: { host: ENV.fetch('REDIS_HOST') },
       namespace: ENV.fetch('NAMESPACE'),
       env: ENV.fetch('ENV'),
       metricname: ENV.fetch('METRICNAME', 'elasticache.slowlog')
@@ -61,7 +63,6 @@ def lambda_handler(event: {}, context: {})
   end
 
   @slowlog_check.ship_slowlogs
-
   nil
 end
 
