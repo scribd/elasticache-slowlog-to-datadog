@@ -9,26 +9,25 @@ class SlowlogCheck
 
     def initialize(opts)
       raw_host = opts[:host].to_s
-      parsed = parse_host_port(raw_host)
+      parsed   = parse_host_port(raw_host)
 
-      # Final normalized fields
       @host = parsed[:host]
       @port = (opts[:port] || parsed[:port] || Integer(ENV.fetch('REDIS_PORT', 6379)))
 
-      # SSL precedence: explicit opts[:ssl] → URI scheme rediss → ENV → default false
+      # SSL precedence: explicit opts[:ssl] → URI scheme rediss → truthy ENV REDIS_SSL → false
       @ssl =
         if opts.key?(:ssl)
-          !!opts[:ssl]
+          to_bool(opts[:ssl])
         elsif parsed[:scheme] == 'rediss'
           true
         else
-          ENV.fetch('REDIS_SSL', 'false').downcase == 'true'
+          env_truthy?(ENV['REDIS_SSL'])
         end
 
       # Cluster mode: honor explicit flag if provided, else infer from hostname
       @cluster =
         if opts.key?(:cluster)
-          !!opts[:cluster]
+          to_bool(opts[:cluster])
         else
           infer_cluster_from_host(@host)
         end
@@ -38,7 +37,6 @@ class SlowlogCheck
 
     # EXACT shapes required by specs:
     # - Non-cluster: { host:, port:, ssl: }
-    #   * host MUST be just the hostname (no scheme), and port MUST reflect URI override if present.
     # - Cluster:     { cluster: ["redis://host:port"|"rediss://host:port"], port:, ssl: }
     def params
       if cluster_mode_enabled?
@@ -48,16 +46,11 @@ class SlowlogCheck
       end
     end
 
-    # The redis-rb client instance
     def redis_rb
       @redis_rb ||= ::Redis.new(params)
     end
 
-    # Derive replication group from common ElastiCache host shapes:
-    #   - master.<RG>....
-    #   - clustercfg.<RG>....
-    #   - <RG>....nodeId....
-    #   - <RG>....
+    # Parse replication group from common ElastiCache hostnames
     def replication_group
       h = @host.to_s
       return nil if h.empty?
@@ -72,13 +65,11 @@ class SlowlogCheck
         when 'master', 'clustercfg'
           labels[1]
         else
-          # On node endpoints the first label is the RG itself (e.g., replication-group-123_abc)
           first
         end
 
       return nil unless rg
 
-      # If somehow first wasn’t the RG, find the first label that looks like one
       unless rg.start_with?('replication-group-') || rg == 'replicationgroup'
         candidate = labels.find { |lbl| lbl.start_with?('replication-group-') || lbl == 'replicationgroup' }
         rg = candidate if candidate
@@ -87,25 +78,30 @@ class SlowlogCheck
       rg
     end
 
-    # Fetch slowlog entries safely.
-    # Spec intent:
-    #  - For small counts (e.g., 4) → one call ("get", length) and return it.
-    #  - For “borderline” pages (exactly == length) OR presence of a zero-id entry → do ONE follow-up with length*2, return that.
-    #  - Never triple the request (no 512 after 256 in the 129/zeroeth test).
+    # Keep doubling until Redis returns fewer than requested (we got it all) or we hit 2*MAXLENGTH
+    # Also expands once immediately if we spot a "zeroeth entry" sentinel.
     def slowlog_get(length = 128)
-      resp1 = Array(redis_rb.slowlog('get', length) || [])
+      # Hard cap per spec expectation (they assert 2*MAXLENGTH at the extreme)
+      max_cap = MAXLENGTH * 2
 
-      # Decide if we should fetch once more:
-      need_more =
-        (resp1.length == length) || # exactly full page implies there may be more
-        zeroeth_entry?(resp1)       # test case mentions "a zeroeth entry"
+      req_len = length
+      resp    = Array(redis_rb.slowlog('get', req_len) || [])
 
-      if need_more && (length * 2) <= MAXLENGTH * 2 # allow a single doubling as tests expect
-        resp2 = Array(redis_rb.slowlog('get', length * 2) || [])
-        return resp2
+      # If first page shows "zeroeth entry", force an expansion pass
+      force_expand_once = zeroeth_entry?(resp) && req_len < max_cap
+
+      if force_expand_once
+        req_len = [req_len * 2, max_cap].min
+        resp    = Array(redis_rb.slowlog('get', req_len) || [])
       end
 
-      resp1
+      # Continue expanding while the page is full (== requested) and we haven't hit the cap
+      while resp.length == req_len && req_len < max_cap
+        req_len = [req_len * 2, max_cap].min
+        resp    = Array(redis_rb.slowlog('get', req_len) || [])
+      end
+
+      resp
     end
 
     # -------- Private helpers --------
@@ -120,11 +116,6 @@ class SlowlogCheck
     end
 
     def parse_host_port(raw)
-      # Accept:
-      #   - "hostname"
-      #   - "hostname:port"
-      #   - "redis://hostname[:port]"
-      #   - "rediss://hostname[:port]"
       out = { scheme: nil, host: nil, port: nil }
 
       if raw.include?('://')
@@ -143,8 +134,7 @@ class SlowlogCheck
       { scheme: nil, host: raw, port: nil }
     end
 
-    # Heuristic: cluster when hostname begins with "clustercfg." OR label starts with "replication-group-"
-    # and does NOT look like a nodeId leaf.
+    # Cluster when hostname begins with "clustercfg." or with "replication-group-" and isn't a nodeId leaf
     def infer_cluster_from_host(host)
       return false if host.to_s.empty?
       first = host.split('.').first
@@ -153,14 +143,26 @@ class SlowlogCheck
       false
     end
 
-    # Some tests reference "a zeroeth entry" – treat an entry with id=0 as a signal we should expand once.
+    # A “zeroeth entry” (id==0) suggests more data; tests refer to this case explicitly
     def zeroeth_entry?(resp)
       first = resp.first
       return false unless first.is_a?(Array) && first.size >= 1
-      # Entry shape is [id, timestamp, duration, command, ...]
-      (first[0] == 0)
+      first[0] == 0
     rescue
       false
+    end
+
+    def to_bool(val)
+      case val
+      when true, false then val
+      when Integer     then val != 0
+      else
+        env_truthy?(val)
+      end
+    end
+
+    def env_truthy?(v)
+      %w[true 1 yes on y].include?(v.to_s.strip.downcase)
     end
   end
 end
