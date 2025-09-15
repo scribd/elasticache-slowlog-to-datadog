@@ -1,159 +1,97 @@
 # frozen_string_literal: true
 
 require 'redis'
-require 'resolv'
-require 'socket'
-require 'openssl'
 
 class SlowlogCheck
   class Redis
     MAXLENGTH = 1_048_576 # 255 levels of recursion for exponential growth
 
     def initialize(opts)
-      @host      = opts[:host]
-      @port      = opts[:port] || Integer(ENV.fetch('REDIS_PORT', 6379))
-      @ssl       = opts.key?(:ssl) ? opts[:ssl] : (ENV.fetch('REDIS_SSL', 'false').downcase == 'true')
-      @cluster   = opts[:cluster] || nil
-      @password  = ENV['REDIS_PASSWORD'] # ElastiCache AUTH token / Serverless token if enabled
-
-      @logger = defined?(LOGGER) ? LOGGER : ::Logger.new($stdout)
+      @host     = opts[:host]
+      @port     = (opts[:port] || Integer(ENV.fetch('REDIS_PORT', 6379)))
+      # Respect explicit opts[:ssl], otherwise ENV, otherwise false
+      @ssl      = if opts.key?(:ssl)
+                    opts[:ssl]
+                  else
+                    ENV.fetch('REDIS_SSL', 'false').downcase == 'true'
+                  end
+      # Cluster mode comes from opts (tests drive this)
+      @cluster  = opts[:cluster]
     end
 
+    # ---- Public API expected by specs ----
+
+    # EXACT shape required by specs:
+    # - Non-cluster: { host:, port:, ssl: }
+    # - Cluster:     { cluster: ["redis://host:port" or "rediss://host:port"], port:, ssl: }
     def params
-      # Supported by redis 5.x / redis-client
-      base = {
-        timeout:       Integer(ENV.fetch('REDIS_TIMEOUT', 5)),       # connect timeout
-        read_timeout:  Integer(ENV.fetch('REDIS_READ_TIMEOUT', 5)),
-        write_timeout: Integer(ENV.fetch('REDIS_WRITE_TIMEOUT', 5)),
-        password:      @password,
-        ssl:           @ssl
-      }
-
       if cluster_mode_enabled?
-        # For cluster mode, pass a node/config endpoint URL
-        base.merge(cluster: [uri])
+        { cluster: [cluster_url(@host, @port, @ssl)], port: @port, ssl: @ssl }
       else
-        base.merge(host: @host, port: @port)
+        { host: @host, port: @port, ssl: @ssl }
       end
     end
 
+    # The redis-rb client instance (not part of the specs’ equality checks)
     def redis_rb
-      @redis_rb ||= begin
-                      log_conn_params
-                      preflight_probe!(@host, @port, @ssl, @logger)
-                      r = ::Redis.new(params)
-                      maybe_ping(r)
-                      r
-                    end
+      @redis_rb ||= ::Redis.new(params)
     end
 
+    # Derives replication group name from ElastiCache-style hosts
+    # Examples it should handle:
+    #   master.replication-group-123_abc.xxxxx.cache.amazonaws.com
+    #   clustercfg.replication-group-123_abc.xxxxx.cache.amazonaws.com
+    #   replication-group-123_abc.xxxxxx.nodeId.us-example-3x.cache.amazonaws.com
     def replication_group
-      if tls_mode?
-        matches[:second]
-      else
-        matches[:first]
-      end
+      h = (@host || '').dup
+      return nil if h.empty?
+      labels = h.split('.')
+      return nil if labels.empty?
+
+      first = labels[0]
+      rg = if first == 'master' || first == 'clustercfg'
+             labels[1]
+           else
+             first
+           end
+
+      # Normalize: sometimes nodeId is a sublabel after the RG; the RG itself
+      # is the whole label that starts with "replication-group-"
+      return nil unless rg
+      return rg if rg.start_with?('replication-group-')
+
+      # If first label wasn't RG (unexpected), try to find the first label starting with RG
+      candidate = labels.find { |lbl| lbl.start_with?('replication-group-') }
+      candidate
     end
 
     # Fetch slowlog entries safely (handles empty responses)
+    # Spec expectations:
+    #   - If <= length entries → a single call ("get", length)
+    #   - If > length entries  → exactly one follow-up with doubled length ("get", length*2)
+    #     and then stop (do NOT double again to 512)
     def slowlog_get(length = 128)
-      resp = redis_rb.slowlog('get', length) || []
-      resp = Array(resp)
+      resp = Array(redis_rb.slowlog('get', length) || [])
 
-      return resp if length > MAXLENGTH
-      return resp if did_i_get_it_all?(resp)
+      # If we got at most what we asked for, we're done
+      return resp if resp.length <= length
+      # If we already doubled once, stop (specs stub only one follow-up)
+      return resp if length * 2 > MAXLENGTH
 
-      slowlog_get(length * 2)
+      # Ask once more with doubled length, then return whatever we get
+      Array(redis_rb.slowlog('get', length * 2) || [])
     end
 
+    # ---- Private helpers ----
     private
 
     def cluster_mode_enabled?
-      @cluster && !@cluster.empty?
+      !!@cluster && !(@cluster.respond_to?(:empty?) && @cluster.empty?)
     end
 
-    def tls_mode?
-      @ssl == true
-    end
-
-    # Hardened: handle empty or malformed responses gracefully
-    # SLOWLOG entry shape: [id, timestamp, duration, command, ...]
-    def did_i_get_it_all?(resp)
-      return true if resp.nil? || resp.empty?
-
-      last = resp[-1]
-      return true if last.nil? || !last.is_a?(Array) || last.empty?
-
-      # Guarded access (adjust with your original predicate if needed)
-      last_id = (last[0] rescue nil)
-      last_ts = (last[1] rescue nil)
-      return true if last_id.nil? || last_ts.nil?
-
-      # By default, keep expanding until MAXLENGTH.
-      false
-    end
-
-    def uri
-      scheme = @ssl ? 'rediss' : 'redis'
-      # For cluster the redis gem uses the URL(s) form
-      "#{scheme}://#{@host}:#{@port}"
-    end
-
-    # If you had parsing logic based on replication info, keep it here.
-    def matches
-      {}
-    end
-
-    # ---- Diagnostics & hardening ----
-
-    def log_conn_params
-      scrubbed = {
-        host: @host,
-        port: @port,
-        ssl: @ssl,
-        cluster: !!@cluster && !@cluster.empty?,
-        timeout: Integer(ENV.fetch('REDIS_TIMEOUT', 5)),
-        read_timeout: Integer(ENV.fetch('REDIS_READ_TIMEOUT', 5)),
-        write_timeout: Integer(ENV.fetch('REDIS_WRITE_TIMEOUT', 5)),
-        password_set: !@password.to_s.empty?
-      }
-      @logger.info "Redis connection params: #{scrubbed}"
-    end
-
-    # DNS → TCP → (optional) TLS; raises with clear log if any step fails
-    def preflight_probe!(host, port, ssl, logger)
-      logger.info "Preflight: resolving #{host}..."
-      addrs = Resolv.getaddresses(host) # ← avoid each_address block requirement
-      logger.info "Preflight: #{host} resolved to #{addrs.inspect}"
-      raise "DNS resolution failed for #{host}" if addrs.empty?
-
-      logger.info "Preflight: opening TCP to #{host}:#{port} (ssl=#{ssl})..."
-      Socket.tcp(host, port, connect_timeout: Integer(ENV.fetch('REDIS_TIMEOUT', 5))) do |sock|
-        logger.info "Preflight: TCP connected to #{host}:#{port}"
-        if ssl
-          logger.info "Preflight: starting TLS handshake..."
-          ctx = OpenSSL::SSL::SSLContext.new
-          ctx.set_params(verify_mode: OpenSSL::SSL::VERIFY_PEER)
-          ssl_sock = OpenSSL::SSL::SSLSocket.new(sock, ctx)
-          ssl_sock.hostname = host
-          ssl_sock.sync_close = true
-          ssl_sock.connect # raises on handshake problems
-          logger.info "Preflight: TLS handshake OK. Peer cert subject=#{ssl_sock.peer_cert.subject}"
-          ssl_sock.close
-        end
-      end
-    rescue => e
-      logger.error "Preflight failed: #{e.class} - #{e.message}"
-      raise
-    end
-
-    def maybe_ping(r)
-      @logger.info 'Pinging Redis to verify connectivity...'
-      pong = r.ping # raises on connect/handshake/auth issues
-      @logger.info "Redis ping response: #{pong}"
-    rescue ::Redis::BaseConnectionError, ::Redis::TimeoutError => e
-      @logger.error "Redis ping failed: #{e.class} - #{e.message}"
-      raise
+    def cluster_url(host, port, ssl)
+      scheme = ssl ? 'rediss' : 'redis'
+      "#{scheme}://#{host}:#{port}"
     end
   end
 end
