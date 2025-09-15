@@ -1,10 +1,21 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Copyright 2020 Scribd, Inc.
+
 require 'logger'
 require 'date'
 require 'dogapi'
 require_relative 'lib/slowlog_check'
+
+# Avoid calling the `hostname` binary in Lambda (no /usr/bin/hostname there)
+module Dogapi
+  module Common
+    def self.find_localhost
+      ENV['HOSTNAME'] || ENV['DD_HOST'] || 'lambda'
+    end
+  end
+end
 
 LOGGER = Logger.new($stdout)
 LOGGER.level = Logger::INFO
@@ -34,6 +45,7 @@ def lambda_handler(event: {}, context: {})
       recursive: true,
       with_decryption: true
     )
+
     resp.parameters.each do |parameter|
       name = File.basename(parameter.name)
       LOGGER.info "Setting parameter: #{name} from SSM."
@@ -42,8 +54,9 @@ def lambda_handler(event: {}, context: {})
   end
 
   unless defined?(@slowlog_check)
-    # Give Dogapi a stable hostname so it won't call the `hostname` binary
+    # Give Dogapi a stable hostname and make it visible to the process
     dd_hostname = ENV['HOSTNAME'] || "slowlog-check-#{ENV.fetch('ENV', 'env')}-#{ENV.fetch('NAMESPACE', 'ns')}"
+    ENV['HOSTNAME'] ||= dd_hostname
 
     dd_client = Dogapi::Client.new(
       ENV.fetch('DATADOG_API_KEY'),
@@ -52,7 +65,7 @@ def lambda_handler(event: {}, context: {})
     )
 
     @slowlog_check = SlowlogCheck.new(
-      ddog: dd_client,
+      ddog: dd_client,                             # ← use the client with the explicit hostname
       redis: { host: ENV.fetch('REDIS_HOST') },
       namespace: ENV.fetch('NAMESPACE'),
       env: ENV.fetch('ENV'),
