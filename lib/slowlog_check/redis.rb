@@ -14,11 +14,18 @@ class SlowlogCheck
       @host = parsed[:host]
       @port = (opts[:port] || parsed[:port] || Integer(ENV.fetch('REDIS_PORT', 6379)))
 
-      # SSL precedence: explicit opts[:ssl] → URI scheme rediss → truthy ENV REDIS_SSL → false
+      # SSL precedence:
+      # 1) explicit opts[:ssl]
+      # 2) URI scheme rediss://
+      # 3) hostname implies TLS (master.* or clustercfg.*)
+      # 4) truthy ENV REDIS_SSL
+      # 5) default false
       @ssl =
         if opts.key?(:ssl)
           to_bool(opts[:ssl])
         elsif parsed[:scheme] == 'rediss'
+          true
+        elsif infer_tls_from_host(@host)
           true
         else
           env_truthy?(ENV['REDIS_SSL'])
@@ -78,24 +85,21 @@ class SlowlogCheck
       rg
     end
 
-    # Keep doubling until Redis returns fewer than requested (we got it all) or we hit 2*MAXLENGTH
+    # Keep doubling until Redis returns fewer than requested (we got it all) or we hit 2*MAXLENGTH.
     # Also expands once immediately if we spot a "zeroeth entry" sentinel.
     def slowlog_get(length = 128)
-      # Hard cap per spec expectation (they assert 2*MAXLENGTH at the extreme)
       max_cap = MAXLENGTH * 2
 
       req_len = length
       resp    = Array(redis_rb.slowlog('get', req_len) || [])
 
       # If first page shows "zeroeth entry", force an expansion pass
-      force_expand_once = zeroeth_entry?(resp) && req_len < max_cap
-
-      if force_expand_once
+      if zeroeth_entry?(resp) && req_len < max_cap
         req_len = [req_len * 2, max_cap].min
         resp    = Array(redis_rb.slowlog('get', req_len) || [])
       end
 
-      # Continue expanding while the page is full (== requested) and we haven't hit the cap
+      # Continue expanding while page is "full"
       while resp.length == req_len && req_len < max_cap
         req_len = [req_len * 2, max_cap].min
         resp    = Array(redis_rb.slowlog('get', req_len) || [])
@@ -141,6 +145,15 @@ class SlowlogCheck
       return true if first == 'clustercfg'
       return true if first&.start_with?('replication-group-') && !host.include?('.nodeId.')
       false
+    end
+
+    # TLS implied by ElastiCache TLS endpoint hostnames:
+    # - master.<replication-group>…  (cluster mode disabled, TLS)
+    # - clustercfg.<replication-group>… (cluster mode enabled, TLS)
+    def infer_tls_from_host(host)
+      return false if host.to_s.empty?
+      first = host.split('.').first
+      first == 'master' || first == 'clustercfg'
     end
 
     # A “zeroeth entry” (id==0) suggests more data; tests refer to this case explicitly
