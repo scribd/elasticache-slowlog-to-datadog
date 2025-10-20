@@ -35,13 +35,16 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.3.4
+
     - name: Build with bundler
       run: |
           gem install bundler
           bundle install --jobs 4 --retry 3 --deployment --without "development test"
+
     - name: Zip
       run : |
         zip -r slowlog_check.zip ./*
+
     - name: Semantic Release
       id: semantic
       uses: cycjimmy/semantic-release-action@v4
@@ -53,3 +56,15 @@ jobs:
           @semantic-release/changelog
           @semantic-release/git
 
+    # Create a PR for CHANGELOG.md when a new release was published
+    - name: Create PR for CHANGELOG
+      if: steps.semantic.outputs.new_release_published == 'true'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        branch: chore/changelog-v${{ steps.semantic.outputs.new_release_version }}
+        commit-message: "chore(changelog): update for v${{ steps.semantic.outputs.new_release_version }}"
+        title: "chore(changelog): update for v${{ steps.semantic.outputs.new_release_version }}"
+        body: "Automated CHANGELOG update for v${{ steps.semantic.outputs.new_release_version }}"
+        add-paths: |
+          CHANGELOG.md
