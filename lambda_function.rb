@@ -18,7 +18,10 @@ module Dogapi
 end
 
 LOGGER = Logger.new($stdout)
-LOGGER.level = Logger::INFO
+
+log_level = ENV.fetch('LOG_LEVEL', 'INFO').to_s.upcase
+LOGGER.level = Logger.const_get(log_level) rescue Logger::INFO
+LOGGER.info("Logger level set to #{Logger::SEV_LABEL[LOGGER.level]}")
 
 def event_time
   # DateTime because Time does not natively parse AWS CloudWatch Event time
