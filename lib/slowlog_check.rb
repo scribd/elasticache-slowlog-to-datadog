@@ -319,9 +319,13 @@ class SlowlogCheck
       count
     ].map do |metric|
       name = @metricname + '.' + metric
+      LOGGER.debug "Fetching metadata for #{name}"
       @ddog.get_metadata(name)[1]
            .merge('name' => name)
     end
+  rescue StandardError => e
+    LOGGER.warn "Unable to fetch metric metadata: #{e.class} #{e.message}"
+    []
   end
 
   def diff_metadatas
@@ -331,11 +335,16 @@ class SlowlogCheck
   def update_metadatas
     diff_metadatas.each do |metadata|
       name = metadata.delete('name')
-      resp = @ddog.update_metadata(
-        name,
-        metadata.transform_keys(&:to_sym)
-      )
-      LOGGER.info "Updating metadata for #{name} #{status_or_error(resp)}"
+      LOGGER.info "Updating metadata for #{name}"
+      begin
+        resp = @ddog.update_metadata(
+          name,
+          metadata.transform_keys(&:to_sym)
+        )
+        LOGGER.info "Updating metadata for #{name} #{status_or_error(resp)}"
+      rescue StandardError => e
+        LOGGER.error "Failed to update metadata for #{name}: #{e.class} #{e.message}"
+      end
     end
   end
 end

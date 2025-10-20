@@ -75,7 +75,12 @@ def lambda_handler(event: {}, context: {})
       metricname: ENV.fetch('METRICNAME', 'elasticache.slowlog')
     )
 
-    @slowlog_check.update_metadatas
+    if ENV.fetch('SKIP_METADATA_UPDATE', 'false').casecmp('true').zero?
+      LOGGER.warn 'Skipping Datadog metadata update due to SKIP_METADATA_UPDATE=true'
+    else
+      LOGGER.info 'Updating Datadog metric metadata'
+      @slowlog_check.update_metadatas
+    end
   end
 
   @slowlog_check.ship_slowlogs
