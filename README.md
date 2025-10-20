@@ -66,4 +66,3 @@ Releases are cut using [semantic-release](https://github.com/semantic-release/se
 
 Please write commit messages following [Angular commit guidelines](https://github.com/angular/angular.js/blob/master/DEVELOPERS.md#-git-commit-guidelines)
 
-
