@@ -1,3 +1,10 @@
+## [3.0.5](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v3.0.4...v3.0.5) (2025-10-20)
+
+
+### Bug Fixes
+
+* add more logs ([9a9c9d5](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/9a9c9d531d02fcf01ad1b8f94105de742cd9e23a))
+
 ## [3.0.4](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v3.0.3...v3.0.4) (2025-10-20)
 
 
