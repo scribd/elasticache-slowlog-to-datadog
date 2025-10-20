@@ -24,6 +24,7 @@ class SlowlogCheck
   end
 
   def last_datadog_metrics_submitted_by_me_in_the_last_2_hours
+    LOGGER.debug "Looking up recent metrics in Datadog for #{@metricname}"
     resp = @ddog.get_points(
       "#{@metricname}.95percentile{replication_group:#{@redis.replication_group}}",
       Time.now - 7200,
@@ -31,6 +32,9 @@ class SlowlogCheck
     )
 
     raise 'Error getting last datadog metric submitted by me' unless status_or_error(resp) == 'ok'
+
+    series_count = Array(resp.dig(1, 'series')).size
+    LOGGER.info "Fetched #{series_count} recent Datadog series for #{@metricname}"
 
     resp
   end
@@ -152,7 +156,10 @@ class SlowlogCheck
 
   def slowlogs_by_flush_interval
     result = reporting_interval
-    @redis.slowlog_get.each do |slowlog|
+    slowlogs = @redis.slowlog_get
+    LOGGER.info "Fetched #{slowlogs.length} slowlog entries from Redis"
+
+    slowlogs.each do |slowlog|
       time = slowlog_time(slowlog)
       break if minute_precision(time) <= minute_precision(last_time_submitted)
 
@@ -189,7 +196,9 @@ class SlowlogCheck
       end
     end
 
-    pad_results_with_zero(result)
+    padded = pad_results_with_zero(result)
+    LOGGER.debug "Prepared #{padded.keys.compact.size} time buckets for emission"
+    padded
   end
 
   def default_tags
@@ -231,6 +240,9 @@ class SlowlogCheck
 
   def ship_slowlogs
     slowlogs = slowlogs_by_flush_interval
+    LOGGER.info "Processing #{slowlogs.keys.count} time buckets"
+
+    emitted = 0
     slowlogs.keys.sort.each do |timestamp|
       timebucket = slowlogs.fetch(timestamp)
       next if timebucket.nil?
@@ -246,6 +258,7 @@ class SlowlogCheck
             points: [[timestamp, all_metrics.fetch(metric)]],
             tags: default_tags.merge(command: command)
           )
+          emitted += 1
         end
 
         # Stupid symbol's cannot start with a number
@@ -254,8 +267,11 @@ class SlowlogCheck
           points: [[timestamp, all_metrics.fetch(:_95percentile)]],
           tags: default_tags.merge(command: command)
         )
+        emitted += 1
       end
     end
+
+    LOGGER.info "Finished shipping slowlogs. Emitted #{emitted} metrics"
   end
 
   ##
