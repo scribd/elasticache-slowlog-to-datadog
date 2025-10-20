@@ -1,3 +1,11 @@
+## [3.0.3](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v3.0.2...v3.0.3) (2025-10-20)
+
+
+### Bug Fixes
+
+* trigger release ([b692347](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/b692347af0f0b52dd2aab4d95c8b6695ba43c251))
+* trigger release 2 ([3d2df55](https://github.com/scribd/elasticache-slowlog-to-datadog/commit/3d2df55361171863e66a05bcff1b31d76cbdb944))
+
 # [2.0.0](https://github.com/scribd/elasticache-slowlog-to-datadog/compare/v1.3.1...v2.0.0) (2023-02-09)
 
 
